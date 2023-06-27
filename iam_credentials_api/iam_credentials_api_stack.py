@@ -23,12 +23,34 @@ class IamCredentialsApiStack(core.Stack):
             removal_policy=core.RemovalPolicy.DESTROY
         )
 
+        iam_role_mapping_dynamo_table = dynamodb.Table(self, "IamRoleMappingTable",
+            partition_key=dynamodb.Attribute(
+                name="projectId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            removal_policy=core.RemovalPolicy.DESTROY
+        )
+
+        # Global Secondary Index
+        session_token_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="SessionTokenGSI",
+            partition_key=dynamodb.Attribute(
+                name="sessionToken",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
         def create_authorizer():
             authorizer_lambda = lambd.Function(self, "AuthorizerLambda",
                 runtime=lambd.Runtime.PYTHON_3_8,
                 handler="authorizer.handler",
-                code=lambd.Code.from_asset("authorizer")
+                code=lambd.Code.from_asset("authorizer"),
+                environment={
+                    "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name
+                }
             )
+            sessions_dynamo_table.grant_read_data(authorizer_lambda)
 
             authorizer = apigateway.TokenAuthorizer(self, "Authorizer",
                 handler=authorizer_lambda,
@@ -59,9 +81,19 @@ class IamCredentialsApiStack(core.Stack):
             handler="get_credentials.handler",
             code=lambd.Code.from_asset("src"),
             environment={
-                "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name
+                "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name,
+                "IAM_ROLE_MAPPING_TABLE_NAME": iam_role_mapping_dynamo_table.table_name,
             }
         )
+
+        get_credentials_inline_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=["sts:AssumeRole"],
+            resources=["*"]
+        )
+
+        # Add inline policy to Lambda function's role
+        get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
 
         update_session_lambda = lambd.Function(self, "UpdateSession",
             runtime=lambd.Runtime.PYTHON_3_8,
@@ -75,6 +107,7 @@ class IamCredentialsApiStack(core.Stack):
         sessions_dynamo_table.grant_read_write_data(create_session_lambda)
         sessions_dynamo_table.grant_read_data(get_credentials_lambda)
         sessions_dynamo_table.grant_read_write_data(update_session_lambda)
+        iam_role_mapping_dynamo_table.grant_read_data(get_credentials_lambda)
 
         # API Gateway
         api = apigateway.RestApi(self, "CredentialsApi",

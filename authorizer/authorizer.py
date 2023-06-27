@@ -9,66 +9,9 @@ import re
 import json
 import time
 import urllib.request
-from jose import jwk, jwt
-from jose.utils import base64url_decode
+import boto3
 
-is_cold_start = True
-keys = {}
-user_pool_id = os.getenv('USER_POOL_ID', None)
-app_client_id = os.getenv('APPLICATION_CLIENT_ID', None)
-admin_group_name = os.getenv('ADMIN_GROUP_NAME', None)
-
-
-def validate_token(token, region):
-    global keys, is_cold_start, user_pool_id, app_client_id
-    if is_cold_start:
-        keys_url = f'https://cognito-idp.{region}.amazonaws.com/{user_pool_id}/.well-known/jwks.json'
-        with urllib.request.urlopen(keys_url) as f:
-            response = f.read()
-        keys = json.loads(response.decode('utf-8'))['keys']
-        is_cold_start = False
-
-    # get the kid from the headers prior to verification
-    headers = jwt.get_unverified_headers(token)
-    kid = headers['kid']
-    # search for the kid in the downloaded public keys
-    key_index = -1
-    for i in range(len(keys)):
-        if kid == keys[i]['kid']:
-            key_index = i
-            break
-    if key_index == -1:
-        print('Public key not found in jwks.json')
-        return False
-    # construct the public key
-    public_key = jwk.construct(keys[key_index])
-    # get the last two sections of the token,
-    # message and signature (encoded in base64)
-    message, encoded_signature = str(token).rsplit('.', 1)
-    # decode the signature
-    decoded_signature = base64url_decode(encoded_signature.encode('utf-8'))
-    # verify the signature
-    if not public_key.verify(message.encode("utf8"), decoded_signature):
-        print('Signature verification failed')
-        return False
-    print('Signature successfully verified')
-    # since we passed the verification, we can now safely
-    # use the unverified claims
-    claims = jwt.get_unverified_claims(token)
-    # additionally we can verify the token expiration
-    if time.time() > claims['exp']:
-        print('Token is expired')
-        return False
-    # and the Audience  (use claims['client_id'] if verifying an access token)
-    if claims['aud'] != app_client_id:
-        print('Token was not issued for this audience')
-        return False
-    decoded_jwt = jwt.decode(token, key=keys[key_index], audience=app_client_id)
-    return decoded_jwt
-
-
-def lambda_handler(event, context):
-    global admin_group_name
+def handler(event, context):
     print(event)
     # print("Client token: " + event['authorizationToken'])
     # print("Method ARN: " + event['methodArn'])
@@ -77,34 +20,45 @@ def lambda_handler(event, context):
     region = tmp[3]
     aws_account_id = tmp[4]
     # validate the incoming token
-    validated_decoded_token = validate_token(event['authorizationToken'], region)
-    if not validated_decoded_token:
+    # Query DynamoDB for item with matching session token
+
+    dynamodb = boto3.resource('dynamodb')
+    table_name = os.environ['SESSIONS_TABLE_NAME']
+    index_name = 'SessionTokenGSI'
+
+    def get_item_by_session_token(session_token):
+        table = dynamodb.Table(table_name)
+
+        response = table.query(
+            IndexName=index_name,
+            KeyConditionExpression='sessionToken = :token',
+            ExpressionAttributeValues={
+                ':token': session_token
+            }
+        )
+
+        items = response['Items']
+        print(items)
+        return items
+    principal_id = event['authorizationToken']
+    # Example usage
+    items = get_item_by_session_token(principal_id)
+    if len(items) != 1:
         raise Exception('Unauthorized')
-    principal_id = validated_decoded_token['sub']
+    
+
+# /sessions/{id}/cluster/{id}/project/{id}/clusterNode/{id} 
+
+
     # initialize the policy
     policy = AuthPolicy(principal_id, aws_account_id)
     policy.restApiId = api_gateway_arn_tmp[0]
     policy.region = region
     policy.stage = api_gateway_arn_tmp[1]
-    # allow all public resources/methods explicitly
-    policy.allow_method(HttpVerb.GET, "locations")
-    policy.allow_method(HttpVerb.GET, "locations/*")
-    policy.allow_method(HttpVerb.GET, "locations/*/resources")
-    policy.allow_method(HttpVerb.GET, "locations/*/resources/*/bookings")
-    # add user specific resources/methods
-    policy.allow_method(HttpVerb.GET, f"/users/{principal_id}/bookings")
-    policy.allow_method(HttpVerb.GET, f"/users/{principal_id}/bookings/*")
-    policy.allow_method(HttpVerb.PUT, f"/users/{principal_id}/bookings")
-    policy.allow_method(HttpVerb.DELETE, f"/users/{principal_id}/bookings/*")
-    # Check the Cognito group entry for Admin.
-    # Assuming here that the Admin group has always higher /precedence
-    if 'cognito:groups' in validated_decoded_token and validated_decoded_token['cognito:groups'][0] == admin_group_name:
-        # add administrative privileges
-        policy.allow_method(HttpVerb.DELETE, "locations")
-        policy.allow_method(HttpVerb.DELETE, "locations/*")
-        policy.allow_method(HttpVerb.PUT, "locations")
-        policy.allow_method(HttpVerb.PUT, "locations/*")
-    # Finally, build the policy
+    # Allow paths specific to provided session ID and session token
+    policy.allow_method(HttpVerb.GET, "sessions/" + items[0]["sessionId"] + "/*")
+
+    # Finally, build the policy and return effective policy
     auth_response = policy.build()
     return auth_response
 
