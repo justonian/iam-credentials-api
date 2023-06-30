@@ -144,12 +144,8 @@ class IamCredentialsApiStack(core.Stack):
 
         session_resource_child.add_method(
             "PUT",
-            apigateway.LambdaIntegration(update_session_lambda),
-            authorizer=auth,
+            apigateway.LambdaIntegration(update_session_lambda)
         )
-
-    
-
 
 app = core.App()
 IamCredentialsApiStack(app, 'IamCredentialsApiStackInstance')

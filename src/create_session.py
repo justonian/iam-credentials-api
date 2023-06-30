@@ -28,9 +28,13 @@ def handler(event, context):
 
     # Generate session token and construct response
     session_token = str(uuid.uuid4())
-    api_gateway_endpoint = "api.example.com"  # Replace with your API Gateway endpoint
+    print(event)
+    print(context)
+    # domainName and path from requestContext contain the path all the way to sessions/ complete
+    # the path with sessionId/cluster/clusterId/project/projectId
+    api_gateway_endpoint = event['requestContext']['domainName'] + event['requestContext']['path']  # Replace with your API Gateway endpoint
     response = {
-        'credentialsEndpoint': f"https://{api_gateway_endpoint}/sessions/{session_id}/cluster/{cluster_name}/project/{project_id}",
+        'credentialsEndpoint': f"https://{api_gateway_endpoint}/{session_id}/cluster/{cluster_name}/project/{project_id}",
         'authorizationToken': session_token
     }
 
@@ -41,7 +45,8 @@ def handler(event, context):
             'projectId': project_id,
             'clusterName': cluster_name,
             'clusterUser': cluster_user,
-            'sessionToken': session_token
+            'sessionToken': session_token,
+            'status': 'SUBMITTED'
         }
     )
 

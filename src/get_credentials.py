@@ -21,17 +21,25 @@ def handler(event, context):
     if len(items) != 1:
         raise Exception("Session does not exist")
     # /sessions/{id}/cluster/{id}/project/{id}/clusterNode/{id}
-    item = items[0]
+    session = items[0]
     response = iam_role_mapping_table.query(
         KeyConditionExpression='projectId = :id',
         ExpressionAttributeValues={
-            ':id': item["projectId"]
+            ':id': session["projectId"]
         }
     )
+    if "status" not in session:
+        raise Exception("All items must have status")
+    if session["status"] not in ["SUBMITTED", "RUNNING"]:
+        return {
+            'statusCode': 403,
+            'body': '{"message": "session is not active"}'
+        }
     items = response['Items']
     if len(items) != 1:
         raise Exception("Role Mapping does not exists")
-    out = assume_iam_role(items[0]["roleArn"], event["pathParameters"]["clusterNodeId"])
+    role_mapping = items[0]
+    out = assume_iam_role(role_mapping["roleArn"], event["pathParameters"]["clusterNodeId"])
     return {
         'statusCode': 200,
         'body': json.dumps(out)
@@ -49,7 +57,7 @@ def assume_iam_role(role_arn, session_name):
     print(response)
     # datetime not serializable
     response['Credentials']['Expiration'] = str(response['Credentials']['Expiration'].utcnow())
-    return response
+    return response['Credentials']
     # # Extract the temporary credentials
     # credentials = response['Credentials']
     # access_key = credentials['AccessKeyId']
