@@ -11,7 +11,11 @@ import time
 import urllib.request
 import boto3
 
+
 def handler(event, context):
+    if handler.head_node_secret is None:
+        secretsclient = boto3.client('secretsmanager')
+        handler.head_node_secret = secretsclient.get_secret_value(SecretId=os.environ['HEAD_NODE_SECRET'])['SecretString']
     print(event)
     # print("Client token: " + event['authorizationToken'])
     # print("Method ARN: " + event['methodArn'])
@@ -41,10 +45,7 @@ def handler(event, context):
         print(items)
         return items
     principal_id = event['authorizationToken']
-    # Example usage
-    items = get_item_by_session_token(principal_id)
-    if len(items) != 1:
-        raise Exception('Unauthorized')
+
     
 
 # /sessions/{id}/cluster/{id}/project/{id}/clusterNode/{id} 
@@ -56,7 +57,15 @@ def handler(event, context):
     policy.region = region
     policy.stage = api_gateway_arn_tmp[1]
     # Allow paths specific to provided session ID and session token
-    policy.allow_method(HttpVerb.GET, "sessions/" + items[0]["sessionId"] + "/*")
+    if principal_id == handler.head_node_secret:
+        policy.allow_method(HttpVerb.POST, "sessions/")
+        policy.allow_method(HttpVerb.PUT, "sessions/*")
+    else:
+        items = get_item_by_session_token(principal_id)
+        if len(items) != 1:
+            # No token exists on the Database
+            raise Exception('Unauthorized')
+        policy.allow_method(HttpVerb.GET, "sessions/" + items[0]["sessionId"] + "/*")
 
     # Finally, build the policy and return effective policy
     auth_response = policy.build()
@@ -228,3 +237,6 @@ class AuthPolicy(object):
         policy['policyDocument']['Statement'].extend(self._get_statement_for_effect("Deny", self.denyMethods))
 
         return policy
+
+# Cache head_node_secret
+handler.head_node_secret = None

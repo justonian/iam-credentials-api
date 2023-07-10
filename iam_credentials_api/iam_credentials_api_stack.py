@@ -5,6 +5,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_apigateway as apigateway,
     aws_iam as iam,
+    aws_secretsmanager as secretsmanager
 )
 
 import aws_cdk as core
@@ -14,6 +15,8 @@ class IamCredentialsApiStack(core.Stack):
 
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
+
+        head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret")
 
         sessions_dynamo_table = dynamodb.Table(self, "SessionsTable",
             partition_key=dynamodb.Attribute(
@@ -47,7 +50,8 @@ class IamCredentialsApiStack(core.Stack):
                 handler="authorizer.handler",
                 code=lambd.Code.from_asset("authorizer"),
                 environment={
-                    "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name
+                    "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name,
+                    "HEAD_NODE_SECRET": head_node_secret.secret_name,
                 }
             )
             sessions_dynamo_table.grant_read_data(authorizer_lambda)
@@ -57,10 +61,16 @@ class IamCredentialsApiStack(core.Stack):
                 identity_source=apigateway.IdentitySource.header("Authorization"),
             )
 
+
             authorizer_lambda.add_to_role_policy(iam.PolicyStatement(
                 actions=["dynamodb:Query"],
                 effect=iam.Effect.ALLOW,
                 resources=[sessions_dynamo_table.table_arn]
+            ))
+            authorizer_lambda.add_to_role_policy(iam.PolicyStatement(
+                actions=["secretsmanager:GetSecretValue"],
+                effect=iam.Effect.ALLOW,
+                resources=[head_node_secret.secret_arn]
             ))
 
             return authorizer

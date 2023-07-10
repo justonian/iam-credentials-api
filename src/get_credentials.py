@@ -73,8 +73,3 @@ def assume_iam_role(role_arn, session_name):
         "SecretAccessKey": creds["SecretAccessKey"],
         "Token": creds["SessionToken"],
     }
-    # # Extract the temporary credentials
-    # credentials = response['Credentials']
-    # access_key = credentials['AccessKeyId']
-    # secret_key = credentials['SecretAccessKey']
-    # session_token = credentials['SessionToken']
