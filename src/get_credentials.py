@@ -19,7 +19,10 @@ def handler(event, context):
     items = response['Items']
 
     if len(items) != 1:
-        raise Exception("Session does not exist")
+        return {
+            'statusCode': 404,
+            'body': json.dumps({"message": "sessionId does not exists"})
+        }
     # /sessions/{id}/cluster/{id}/project/{id}/clusterNode/{id}
     session = items[0]
     response = iam_role_mapping_table.query(
@@ -29,15 +32,21 @@ def handler(event, context):
         }
     )
     if "status" not in session:
-        raise Exception("All items must have status")
-    if session["status"] not in ["SUBMITTED", "RUNNING"]:
+        return {
+            'statusCode': 500,
+            'body': json.dumps({"message": "All sessions must have a status"})
+        }
+    if session["status"] not in ["ACTIVE"]:
         return {
             'statusCode': 403,
-            'body': '{"message": "session is not active"}'
+            'body': '{"message": "session is not ACTIVE"}'
         }
     items = response['Items']
     if len(items) != 1:
-        raise Exception("Role Mapping does not exists")
+        return {
+            'statusCode': 404,
+            'body': json.dumps({"message": "There is no role mapping for given projectId"})
+        }
     role_mapping = items[0]
     out = assume_iam_role(role_mapping["roleArn"], event["pathParameters"]["clusterNodeId"])
     return {
@@ -56,8 +65,14 @@ def assume_iam_role(role_arn, session_name):
     )
     print(response)
     # datetime not serializable
-    response['Credentials']['Expiration'] = str(response['Credentials']['Expiration'].utcnow())
-    return response['Credentials']
+    creds = response['Credentials']
+    return {
+        "AccessKeyId": creds["AccessKeyId"],
+        "Expiration": str(creds['Expiration'].utcnow()),
+        "RoleArn": role_arn,
+        "SecretAccessKey": creds["SecretAccessKey"],
+        "Token": creds["SessionToken"],
+    }
     # # Extract the temporary credentials
     # credentials = response['Credentials']
     # access_key = credentials['AccessKeyId']

@@ -37,7 +37,20 @@ def handler(event, context):
         'credentialsEndpoint': f"https://{api_gateway_endpoint}/{session_id}/cluster/{cluster_name}/project/{project_id}",
         'authorizationToken': session_token
     }
+    # Check if sessionId already exists
+    session_response = table.query(
+        KeyConditionExpression='sessionId = :id',
+        ExpressionAttributeValues={
+            ':id': session_id
+        }
+    )
+    session_list = session_response['Items']
 
+    if len(session_list) > 0:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({"message": "sessionId already exists"})
+        }
     # Write session token to DynamoDB table
     table.put_item(
         Item={
@@ -46,7 +59,7 @@ def handler(event, context):
             'clusterName': cluster_name,
             'clusterUser': cluster_user,
             'sessionToken': session_token,
-            'status': 'SUBMITTED'
+            'status': 'ACTIVE'
         }
     )
 

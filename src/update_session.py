@@ -29,10 +29,18 @@ def handler(event, context):
     items = response['Items']
 
     if len(items) != 1:
-        raise Exception("Session does not exist")
+        return {
+            'statusCode': 404,
+            'body': json.dumps({"message": "sessionId invalid"})
+        }
     # /sessions/{id}/cluster/{id}/project/{id}/clusterNode/{id}
     session = items[0]
     # TODO Validate status
+    if session['status'] not in ["COMPLETED", "ACTIVE"]:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({"message": "Status can only be updated to ACTIVE or COMPLETED"})
+        }
     session['status'] = body['status']
 
     # Write session token to DynamoDB table
