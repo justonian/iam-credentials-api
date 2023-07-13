@@ -5,8 +5,7 @@ import argparse, os, random, sys, requests
 from socketserver import ThreadingMixIn
 import threading
 
-
-hostname = 't7b9p81x86.execute-api.us-east-1.amazonaws.com'
+hostname = ''
 
 def merge_two_dicts(x, y):
     return x | y
