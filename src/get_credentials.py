@@ -68,7 +68,7 @@ def assume_iam_role(role_arn, session_name):
     creds = response['Credentials']
     return {
         "AccessKeyId": creds["AccessKeyId"],
-        "Expiration": str(creds['Expiration'].utcnow()),
+        "Expiration": str(creds['Expiration']),
         "RoleArn": role_arn,
         "SecretAccessKey": creds["SecretAccessKey"],
         "Token": creds["SessionToken"],
