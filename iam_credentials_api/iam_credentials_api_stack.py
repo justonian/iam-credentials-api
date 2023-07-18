@@ -5,6 +5,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_apigateway as apigateway,
     aws_iam as iam,
+    CfnOutput,
     aws_secretsmanager as secretsmanager
 )
 
@@ -156,6 +157,10 @@ class IamCredentialsApiStack(core.Stack):
             "PUT",
             apigateway.LambdaIntegration(update_session_lambda)
         )
+        CfnOutput(self, 'RoleTableName', value=iam_role_mapping_dynamo_table.table_name)
+        CfnOutput(self, 'SessionseTableName', value=sessions_dynamo_table.table_name)
+        CfnOutput(self, 'GetCredentialsLambdaRoleArn', value=get_credentials_lambda.role.role_arn)
+        CfnOutput(self, 'HeadNodeSecretArn', value=head_node_secret.secret_arn)
 
 app = core.App()
 IamCredentialsApiStack(app, 'IamCredentialsApiStackInstance')

@@ -115,12 +115,21 @@ $ cdk deploy
 ```
 ### Populating the DynamoDB Role Mapping table
 
-5. Browse to the DynamoDB role mapping table that was specified in the CloudFormation stack outputs.
-6. Manually populate this table one item for each SLURM project ID. The items should use projectID as the partition key and have an attribute called roleArn. These are case sensititve attributes.
+6. Browse to the DynamoDB role mapping table that was specified in the CloudFormation stack outputs.
+7. Manually populate this table one item for each SLURM project ID. The items should use projectID as the partition key and have an attribute called roleArn. These are case sensititve attributes.
+
+### Establish the head node secret for head node API authentication
+
+8. Browse to the Secrets Manager console and find the head node secret
+9. Select the head node secret and choose to "Retrieve secret value"
+10. You can now Edit to include your customzied secret specific to head node or copy the existing auto-generated secret and provide to the head node in a secure way.
+11. Whichever secret you choose, save the secret and popuate the secret on the head node for use when authenticating to the head node.
+
+*Note: This is a temporary PoC setup and the head node authentication should be hardened to use IAM-based authorization or time-limited bearer tokens (OAuth flows) as a more secure approach for a productioin installation.*
 
 ### Setting up SLURM head node integration
 
-7. The SLURM head node should invoke the **/sessions** POST method upon job/session creation.
+12. The SLURM head node should invoke the **/sessions** POST method upon job/session creation.
 
 The head node secret token should be sent in the Authorization header.
 
@@ -139,14 +148,17 @@ Request body should include the following payload attributes:
     "status": "ACTIVE"
 }
 
-The head node secret token should be sent in the Authorization header.
-
+The head node secret token should also be sent in the Authorization header.
 
 ### Setting up the compute/worker nodes
 
-7. Since the AWS CLIs and SDKs only allow retrieving credentials from Localhost and a 169... IP address, you next need to install a localhost proxy service. Copy localhost_proxy.py to each compute worker node and setup a persistent process to launch this service at boot of each instance.
+13. Since the AWS CLIs and SDKs only allow retrieving credentials from Localhost and a 169... IP address, you next need to install a localhost proxy service. Copy the localhost_proxy.py file to each compute worker node and setup a persistent process to launch this service at boot of each instance.
 
 ```
-python localhost_proxy.py --host 'your_api_endpoint_here' 
+python3 localhost_proxy.py --host 'your_api_endpoint_here' 
 ```
-You should include any path beyond the hostname, including the /prod. The default endpoint when not specified is t7b9p81x86.execute-api.us-east-1.amazonaws.com.
+You should include any path beyond the hostname, so be sure to exclude the stage name such as /prod. The default endpoint when not specified is t7b9p81x86.execute-api.us-east-1.amazonaws.com.
+
+### Configure the CLI or AWS SDKs
+
+14. If the compute/worker nodes are running jobs on an EC2 instance without
