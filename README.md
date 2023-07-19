@@ -171,7 +171,7 @@ Configure your AWS config file (found at ~/.aws/config) to include credential_so
 
 ```
 [default]
-region = us-east-1
+region = us-west-2
 output = json
 credential_source = EcsContainer
 ```
@@ -184,7 +184,7 @@ Be sure that no other access key credentials are set for the profile in the ~/.a
 
 ```
 {
-    "credentialsAwsApiEndpoint": "https://ygefc1fgof.execute-api.us-east-1.amazonaws.com/prod/sessions/11100/cluster/alpha/project/abc",
+    "credentialsAwsApiEndpoint": "https://ygefc1fgof.execute-api.us-west-2.amazonaws.com/prod/sessions/11100/cluster/alpha/project/abc",
     "credentialsLocalApiEndpoint": "http://localhost:9999/sessions/11100/cluster/alpha/project/abc",
     "authorizationToken": "6c2ccc8a-b039-481e-80b7-82e6116e1497"
 }
