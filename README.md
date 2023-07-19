@@ -152,7 +152,9 @@ The head node secret token should also be sent in the Authorization header.
 
 ### Setting up the compute/worker nodes
 
-13. Since the AWS CLIs and SDKs only allow retrieving credentials from Localhost and a 169... IP address, you next need to install a localhost proxy service. Copy the localhost_proxy.py file to each compute worker node and setup a persistent process to launch this service at boot of each instance.
+#### Configure compute/worker node localhost credentials API proxy
+
+13. Since the AWS CLIs and SDKs only allow retrieving credentials from localhost and a 169... IP address, you next need to install a localhost proxy service. Copy the localhost_proxy.py file to each compute worker node and setup a persistent process to launch this service at boot of each instance.
 
 ```
 python3 localhost_proxy.py --host 'your_api_endpoint_here' 
@@ -161,4 +163,46 @@ You should include any path beyond the hostname, so be sure to exclude the stage
 
 ### Configure the CLI or AWS SDKs
 
-14. If the compute/worker nodes are running jobs on an EC2 instance without
+14. If the compute/worker nodes are running jobs on an EC2 instance without an instance profile (ex. an EC2 instance without an IAM role associated during launch), then the AWS CLI and SDKs should auto-discover the ECS credential provider when it searches for credentials and locates the named environmental variables indicating where to query for credentials.
+
+If you are using an instance with an existing IAM role at the EC2 instance level, then it is necessary to explicitly set the AWS CLI to use the ECS container credentials provider so it searches the environmental variables and the credentials take precedence over the EC2 instance profile or role credentials.
+
+Configure your AWS config file (found at ~/.aws/config) to include credential_source set to EcsContainer. If using the AWS CLI, you can use the command aws configure set default.credential_source EcsContainer to set this value.
+
+```
+[default]
+region = us-east-1
+output = json
+credential_source = EcsContainer
+```
+
+Be sure that no other access key credentials are set for the profile in the ~/.aws/credentials file. Only the config file is needed.
+
+### Integrate compute/worker nodes with Credentials API
+
+15. In response to the head node creating a new job/session, the following payload (with different values) will be returned.
+
+```
+{
+    "credentialsAwsApiEndpoint": "https://ygefc1fgof.execute-api.us-east-1.amazonaws.com/prod/sessions/11100/cluster/alpha/project/abc",
+    "credentialsLocalApiEndpoint": "http://localhost:9999/sessions/11100/cluster/alpha/project/abc",
+    "authorizationToken": "6c2ccc8a-b039-481e-80b7-82e6116e1497"
+}
+```
+As part of the setup on each ndoe, append an addition /clusterNode/{clusterNodeName} value to the end of the credentialsLocalApiEndpoint. This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity.
+
+Set the following two variables on each of the worker nodes:
+
+AWS_CONTAINER_CREDENTIALS_FULL_URI="http://localhost:9999/sessions/11100/cluster/alpha/project/abc/clusterNode/phoenix"
+
+*You should always use the localhost API endpoint provided in the return response from the creation session call along with the appended cluster node ID and value path parameters.*
+
+AWS_CONTAINER_AUTHORIZATION_TOKEN="6c2ccc8a-b039-481e-80b7-82e6116e1497"
+
+*You should set the session token sent in response to the create session as this value.*
+
+More details on the significance of these variables and how they're used with the ECS Container credentials provider can be found at https://docs.aws.amazon.com/sdkref/latest/guide/feature-container-credentials.html. Both of these values should remain constant for each node while a specific job/session is running.
+
+16. Test the job/session dynamic credentials gathering by running a CLI command such as 'aws sts get-caller-identity' to confirm which identity is being used for CLI calls.
+
+These IAM credentials are dynamic and provided through IAM role chaining where the Lambda function assumes the role and passes back the credentials.

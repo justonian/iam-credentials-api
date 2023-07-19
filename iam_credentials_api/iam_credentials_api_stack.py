@@ -122,8 +122,12 @@ class IamCredentialsApiStack(core.Stack):
 
         # API Gateway
         api = apigateway.RestApi(self, "CredentialsApi",
+            endpoint_types=[
+                apigateway.EndpointType.REGIONAL
+            ],
             rest_api_name="Credentials API",
             description="Dynamic IAM Credentials Gateway",
+
             # default_method_options=apigateway.MethodOptions(
             #     authorization_type=apigateway.AuthorizationType.CUSTOM,
             #     # authorizer=apigateway.TokenAuthorizerConfig(
