@@ -189,7 +189,7 @@ Be sure that no other access key credentials are set for the profile in the ~/.a
     "AWS_CONTAINER_AUTHORIZATION_TOKEN": "6c2ccc8a-b039-481e-80b7-82e6116e1497"
 }
 ```
-As part of the setup on each ndoe, append an addition /clusterNode/{clusterNodeName} value to the end of the credentialsLocalApiEndpoint. This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity.
+As part of the setup on each ndoe, append an addition /clusterNode/{clusterNodeName} value to the end of the LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI. This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity.
 
 Set the following two variables on each of the worker nodes:
 
