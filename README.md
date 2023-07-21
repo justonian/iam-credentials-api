@@ -3,9 +3,9 @@
 
 ## Project overview
 
-This project deploys an IAM assume-role service for integration with SLURM jobs. It uses a project ID passed in the session creation API to look up the appropriate IAM role and return IAM temporary role credentials (access key, secret access key, and session token) using the ECS container credentials provider features built into the AWS CLI and SDKs.
+This project deploys an IAM assume-role service for integration with SLURM jobs. It uses a project ID passed in the session creation API to look up the appropriate project-aligned IAM role and return IAM temporary role credentials (access key, secret access key, and session token) using the ECS container credentials provider features built into the AWS CLI and SDKs.
 
-To enable transparent integration to any existing jobs that use the AWS CLI or SDK, you must run a localhost proxy to forward any calls made to a local listener service on the compute/worker nodes to the credentials vending API.
+To enable transparent integration to any existing jobs that use the AWS CLI or SDK, you must run a localhost proxy to forward any calls made to a localhost listener service on the compute/worker nodes to the credentials vending API.
 
 ## API overview
 
@@ -106,7 +106,7 @@ $ cdk deploy
             "Sid": "Statement1",
             "Effect": "Allow",
             "Principal": {
-                "AWS": "arn:aws:iam::1234567890:role/IamCredentialsApiStack-GetCredentialsServiceRole52-1U1JLE"
+                "AWS": "arn:aws:iam::1234567890:role/IamCredentialsApiStack-GetCredentialsServiceRole...YOUR_ROLE_ARN"
             },
             "Action": "sts:AssumeRole"
         }
@@ -176,7 +176,7 @@ output = json
 credential_source = EcsContainer
 ```
 
-Be sure that no other access key credentials are set for the profile in the ~/.aws/credentials file. Only the config file is needed.
+Be sure that no other access key credentials are set for the profile in the ~/.aws/credentials file. Only the config file is needed so if ~/.aws/credentials does not exist, the credential authentication flow should still work as expected.
 
 ### Integrate compute/worker nodes with Credentials API
 
@@ -189,13 +189,13 @@ Be sure that no other access key credentials are set for the profile in the ~/.a
     "AWS_CONTAINER_AUTHORIZATION_TOKEN": "6c2ccc8a-b039-481e-80b7-82e6116e1497"
 }
 ```
-As part of the setup on each ndoe, append an addition /clusterNode/{clusterNodeName} value to the end of the LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI. This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity.
+As part of the setup on each ndoe, you will also append an additional query string parameter *clusterNodeId* value to the end of the LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI. This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity. This is used as the IAM role session name allowing activity logging, auditing, and revocation for a specific cluster node.
 
 Set the following two variables on each of the worker nodes:
 
-AWS_CONTAINER_CREDENTIALS_FULL_URI="http://localhost:9999/sessions/11100/cluster/alpha/project/abc/clusterNode/phoenix"
+AWS_CONTAINER_CREDENTIALS_FULL_URI="http://localhost:9999/sessions/11100/cluster/alpha/project/abc?clusterNodeId=phoenix"
 
-*You should always use the localhost API endpoint provided in the return response from the creation session call along with the appended cluster node ID and value path parameters.*
+*You should always use the localhost API endpoint provided in the return response from the creation session call along with the appended cluster node ID query string parameter.*
 
 AWS_CONTAINER_AUTHORIZATION_TOKEN="6c2ccc8a-b039-481e-80b7-82e6116e1497"
 

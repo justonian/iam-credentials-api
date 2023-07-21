@@ -151,9 +151,7 @@ class IamCredentialsApiStack(core.Stack):
             "cluster").add_resource(
             "{clusterId}").add_resource(
             "project").add_resource(
-            "{projectId}").add_resource(
-            "clusterNode").add_resource(
-            "{clusterNodeId}").add_method(
+            "{projectId}").add_method(
             "GET",
             apigateway.LambdaIntegration(get_credentials_lambda),
             authorizer=auth,

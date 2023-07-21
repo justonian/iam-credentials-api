@@ -23,7 +23,7 @@ def handler(event, context):
             'statusCode': 404,
             'body': json.dumps({"message": "sessionId does not exists"})
         }
-    # /sessions/{id}/cluster/{id}/project/{id}/clusterNode/{id}
+    # /sessions/{id}/cluster/{id}/project/{id}
     session = items[0]
     response = iam_role_mapping_table.query(
         KeyConditionExpression='projectId = :id',
@@ -35,6 +35,16 @@ def handler(event, context):
         return {
             'statusCode': 500,
             'body': json.dumps({"message": "All sessions must have a status"})
+        }
+    if session["clusterName"] != event["pathParameters"]["clusterId"]:
+        return {
+            'statusCode': 400,
+            'body': '{"message": "clusterId does not match session clusterId"}'
+        }
+    if session["projectId"] != event["pathParameters"]["projectId"]:
+        return {
+            'statusCode': 400,
+            'body': '{"message": "projectId does not match session projectId"}'
         }
     if session["status"] not in ["ACTIVE"]:
         return {
@@ -48,28 +58,35 @@ def handler(event, context):
             'body': json.dumps({"message": "There is no role mapping for given projectId"})
         }
     role_mapping = items[0]
-    out = assume_iam_role(role_mapping["roleArn"], event["pathParameters"]["clusterNodeId"])
+    assume_role_args = {
+       "RoleArn": role_mapping["roleArn"]
+    }
+    
+    if event["queryStringParameters"] and "clusterNodeId" in event["queryStringParameters"]:
+        assume_role_args["RoleSessionName"] = event["queryStringParameters"]["clusterNodeId"]
+    else:
+        return {
+            'statusCode': 400,
+            'body': '{"message": "Missing clusterNodeId queryParameter"}'
+        }
+    out = assume_iam_role(assume_role_args)
     return {
         'statusCode': 200,
         'body': json.dumps(out)
     }
 
-def assume_iam_role(role_arn, session_name):
+def assume_iam_role(assume_role_args):
     # Create a STS client
     sts_client = boto3.client('sts')
 
     # Assume the IAM role
-    response = sts_client.assume_role(
-        RoleArn=role_arn,
-        RoleSessionName=session_name
-    )
-    print(response)
+    response = sts_client.assume_role(**assume_role_args)
     # datetime not serializable
     creds = response['Credentials']
     return {
         "AccessKeyId": creds["AccessKeyId"],
         "Expiration": str(creds['Expiration']),
-        "RoleArn": role_arn,
+        "RoleArn": assume_role_args["RoleArn"],
         "SecretAccessKey": creds["SecretAccessKey"],
         "Token": creds["SessionToken"],
     }
