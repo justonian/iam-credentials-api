@@ -184,9 +184,9 @@ Be sure that no other access key credentials are set for the profile in the ~/.a
 
 ```
 {
-    "credentialsAwsApiEndpoint": "https://ygefc1fgof.execute-api.us-west-2.amazonaws.com/prod/sessions/11100/cluster/alpha/project/abc",
-    "credentialsLocalApiEndpoint": "http://localhost:9999/sessions/11100/cluster/alpha/project/abc",
-    "authorizationToken": "6c2ccc8a-b039-481e-80b7-82e6116e1497"
+    "APIGATEWAY_AWS_CONTAINER_CREDENTIALS_FULL_URI": "https://ygefc1fgof.execute-api.us-west-2.amazonaws.com/prod/sessions/11100/cluster/alpha/project/abc",
+    "LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI": "http://localhost:9999/sessions/11100/cluster/alpha/project/abc",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN": "6c2ccc8a-b039-481e-80b7-82e6116e1497"
 }
 ```
 As part of the setup on each ndoe, append an addition /clusterNode/{clusterNodeName} value to the end of the credentialsLocalApiEndpoint. This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity.
