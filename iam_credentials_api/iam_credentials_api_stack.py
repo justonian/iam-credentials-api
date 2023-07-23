@@ -130,12 +130,6 @@ class IamCredentialsApiStack(core.Stack):
             ],
             rest_api_name="Credentials API",
             description="Dynamic IAM Credentials Gateway",
-            # default_method_options=apigateway.MethodOptions(
-            #     authorization_type=apigateway.AuthorizationType.CUSTOM,
-            #     authorizer=apigateway.TokenAuthorizerConfig(
-            #         authorizer_id=create_authorizer().authorizer_id
-            #     ),
-            # )
         )
         auth = create_authorizer()
 
@@ -145,8 +139,14 @@ class IamCredentialsApiStack(core.Stack):
         session_resource.add_method(
             "POST",
             apigateway.LambdaIntegration(create_session_lambda),
+            authorizer=auth,
         )
         session_resource_child = session_resource.add_resource("{sessionId}")
+        session_resource_child.add_method(
+            "PUT",
+            apigateway.LambdaIntegration(update_session_lambda),
+            authorizer=auth,
+        )
         session_resource_child.add_resource(
             "cluster").add_resource(
             "{clusterId}").add_resource(
@@ -157,10 +157,6 @@ class IamCredentialsApiStack(core.Stack):
             authorizer=auth,
         )
 
-        session_resource_child.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(update_session_lambda)
-        )
         CfnOutput(self, 'RoleTableName', value=iam_role_mapping_dynamo_table.table_name)
         CfnOutput(self, 'SessionseTableName', value=sessions_dynamo_table.table_name)
         CfnOutput(self, 'GetCredentialsLambdaRoleArn', value=get_credentials_lambda.role.role_arn)

@@ -46,10 +46,7 @@ def handler(event, context):
         return items
     principal_id = event['authorizationToken']
 
-    
-
-# /sessions/{id}/cluster/{id}/project/{id}/clusterNode/{id} 
-
+    # Sample URI for reference: /sessions/{id}/cluster/{id}/project/{id}
 
     # initialize the policy
     policy = AuthPolicy(principal_id, aws_account_id)
@@ -58,19 +55,20 @@ def handler(event, context):
     policy.stage = api_gateway_arn_tmp[1]
     # Allow paths specific to provided session ID and session token
     if principal_id == handler.head_node_secret:
+        policy.allow_method(HttpVerb.POST, "sessions")
         policy.allow_method(HttpVerb.POST, "sessions/")
         policy.allow_method(HttpVerb.PUT, "sessions/*")
     else:
         items = get_item_by_session_token(principal_id)
         if len(items) != 1:
-            # No token exists on the Database
-            raise Exception('Unauthorized')
-        policy.allow_method(HttpVerb.GET, "sessions/" + items[0]["sessionId"] + "/*")
+            # No token exists on the database - deny access to all methods
+            policy.deny_all_methods()
+        else:
+            policy.allow_method(HttpVerb.GET, "sessions/" + items[0]["sessionId"] + "/*")
 
     # Finally, build the policy and return effective policy
     auth_response = policy.build()
     return auth_response
-
 
 class HttpVerb:
     GET = "GET"
