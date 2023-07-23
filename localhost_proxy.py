@@ -11,6 +11,8 @@ def merge_two_dicts(x, y):
     return x | y
 
 def set_header(headers):
+    print("Setting host")
+    print(hostname)
     headers['Host'] = hostname
     return headers
 

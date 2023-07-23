@@ -33,9 +33,10 @@ def handler(event, context):
     # domainName and path from requestContext contain the path all the way to sessions/ complete
     # the path with sessionId/cluster/clusterId/project/projectId
     api_gateway_endpoint = event['requestContext']['domainName'] + event['requestContext']['path']  # Replace with your API Gateway endpoint
+    api_gateway_endpoint_path = api_gateway_endpoint.split('/', 1)[1]
     response = {
         'APIGATEWAY_AWS_CONTAINER_CREDENTIALS_FULL_URI': f"https://{api_gateway_endpoint}/{session_id}/cluster/{cluster_name}/project/{project_id}",
-        'LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI': f"http://localhost:9999/sessions/{session_id}/cluster/{cluster_name}/project/{project_id}",
+        'LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI': f"http://localhost:9999/{api_gateway_endpoint_path}/{session_id}/cluster/{cluster_name}/project/{project_id}",
         'AWS_CONTAINER_AUTHORIZATION_TOKEN': session_token
     }
     # Check if sessionId already exists
