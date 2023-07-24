@@ -4,8 +4,14 @@ import argparse, os, random, sys, requests
 
 from socketserver import ThreadingMixIn
 import threading
+import json
+from datetime import datetime
 
 hostname = ''
+# Configure credentials cache to be enabled by default
+cache_mode = "store"
+
+credentials_cache = {}
 
 def merge_two_dicts(x, y):
     return x | y
@@ -28,18 +34,34 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
             url = 'https://{}{}'.format(hostname, self.path)
             req_header = self.parse_headers()
             headers = set_header(req_header)
-            resp = requests.get(url, headers=headers, verify=False)
+            key = headers['Authorization'] + url
+            resp = None
+            if cache_mode == "store" and key in credentials_cache and datetime.now() < credentials_cache[key]["expiration"]:
+                print("Using cached credentials.")
+                resp = credentials_cache[key]["content"]
+            else:
+                print("Requesting credentials from API. Cached credentials not avaialble.")
+                resp = requests.get(url, headers=headers, verify=False)
             sent = True
 
             self.send_response(resp.status_code)
             self.send_resp_headers(resp)
             msg = resp.text
+            if resp.status_code == 200:
+                credentials_cache[key] = {
+                    "content": resp,
+                    "expiration": datetime.fromisoformat(json.loads(msg)["Expiration"][:-6])
+                }
+                print("cache")
+                print(key)
+                print(credentials_cache[key])
             if body:
                 self.wfile.write(msg.encode(encoding='UTF-8',errors='strict'))
+ 
             return
         finally:
             if not sent:
-                self.send_error(404, 'error trying to proxy')
+                self.send_error(404, 'Error trying to proxy')
 
     def do_POST(self, body=True):
         sent = False
@@ -58,7 +80,7 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
             return
         finally:
             if not sent:
-                self.send_error(404, 'error trying to proxy')
+                self.send_error(404, 'Error trying to proxy')
 
     def parse_headers(self):
         req_header = {}
@@ -81,9 +103,11 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
 def parse_args(argv=sys.argv[1:]):
     parser = argparse.ArgumentParser(description='Proxy HTTP requests')
     parser.add_argument('--port', dest='port', type=int, default=9999,
-                        help='serve HTTP requests on specified port (default: random)')
+                        help='Serve HTTP requests on specified port (default: 9999)')
+    parser.add_argument('--cache_mode', dest='cache_mode', type=str, default="store",
+                        help='Cache GET requests until credentials expiration')
     parser.add_argument('--hostname', dest='hostname', type=str, default='t7b9p81x86.execute-api.us-east-1.amazonaws.com',
-                        help='hostname to be processd (default: t7b9p81x86.execute-api.us-east-1.amazonaws.com)')
+                        help='Hostname to be processd (default: t7b9p81x86.execute-api.us-east-1.amazonaws.com)')
     args = parser.parse_args(argv)
     return args
 
@@ -92,12 +116,14 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 def main(argv=sys.argv[1:]):
     global hostname
+    global cache_mode
     args = parse_args(argv)
     hostname = args.hostname
-    print('http server is starting on {} port {}...'.format(args.hostname, args.port))
+    cache_mode = args.cache_mode
+    print('HTTP server is starting on {} port {}...'.format(args.hostname, args.port))
     server_address = ('127.0.0.1', args.port)
     httpd = ThreadedHTTPServer(server_address, ProxyHTTPRequestHandler)
-    print('http server is running as reverse proxy')
+    print('HTTP server is running as reverse proxy')
     httpd.serve_forever()
 
 if __name__ == '__main__':
