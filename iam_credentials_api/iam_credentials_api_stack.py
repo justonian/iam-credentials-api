@@ -16,8 +16,11 @@ class IamCredentialsApiStack(core.Stack):
 
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
+        env = self.node.try_get_context('env')
+        if not env:
+            raise Exception("env is not defined")
 
-        head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret")
+        head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret", secret_name="head-node-secret-" + env)
 
         sessions_dynamo_table = dynamodb.Table(self, "SessionsTable",
             partition_key=dynamodb.Attribute(
@@ -121,6 +124,7 @@ class IamCredentialsApiStack(core.Stack):
         iam_role_mapping_dynamo_table.grant_read_data(get_credentials_lambda)
 
         # API Gateway
+
         api = apigateway.RestApi(self, "CredentialsApi",
             deploy_options=apigateway.StageOptions(
                 tracing_enabled=True
@@ -128,7 +132,7 @@ class IamCredentialsApiStack(core.Stack):
             endpoint_types=[
                 apigateway.EndpointType.REGIONAL
             ],
-            rest_api_name="Credentials API",
+            rest_api_name="CredentialsAPI-"+env,
             description="Dynamic IAM Credentials Gateway",
         )
         auth = create_authorizer()
@@ -147,6 +151,7 @@ class IamCredentialsApiStack(core.Stack):
             apigateway.LambdaIntegration(update_session_lambda),
             authorizer=auth,
         )
+
         session_resource_child.add_resource(
             "cluster").add_resource(
             "{clusterId}").add_resource(
@@ -161,7 +166,3 @@ class IamCredentialsApiStack(core.Stack):
         CfnOutput(self, 'SessionseTableName', value=sessions_dynamo_table.table_name)
         CfnOutput(self, 'GetCredentialsLambdaRoleArn', value=get_credentials_lambda.role.role_arn)
         CfnOutput(self, 'HeadNodeSecretArn', value=head_node_secret.secret_arn)
-
-app = core.App()
-IamCredentialsApiStack(app, 'IamCredentialsApiStackInstance')
-app.synth()

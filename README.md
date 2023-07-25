@@ -72,9 +72,14 @@ $ cdk bootstrap
 
 ### Regular deployments
 
-To deploy any changes to the environment, run cdk deploy which will deploy only the changed template resources.
+To deploy any changes to the environment, run cdk deploy which will deploy only the changed template resources, the env variable is prefixed to the deployed stack, and to all underlying resources.
 ```
-$ cdk deploy
+$ cdk deploy -c env=Dev
+```
+
+To destroy the stack, specify -c env=Dev or the environment name that will be destroyed
+```
+$ cdk deploy -c env=Dev
 ```
 
 ### Useful commands
