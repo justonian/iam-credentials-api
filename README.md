@@ -11,7 +11,7 @@ To enable transparent integration to any existing jobs that use the AWS CLI or S
 
 * **/sessions (POST)** - Create a new session/job. Exclusively for use by SLURM head node  
 * **/sessions/{sessionId} (PUT)** - Update an existing session. Exclusively for use by SLURM head node  
-* **/sessions/{sessionId}/cluster/{clusterId}/project/{projectId}/clusterNode/{clusterNodeId} (GET)** - Retrieves IAM role credentails with access key, secret access key, and session token. Used by all compute/worker nodes running a given job/session.
+* **/sessions/{sessionId}/cluster/{clusterId}/project/{projectId}?clusterNodeId={clusterNodeId} (GET)** - Retrieves IAM role credentails with access key, secret access key, and session token. Used by all compute/worker nodes running a given job/session.
 
 Additional methods and paths to be added shortly, such as revocation paths.
  
@@ -72,14 +72,17 @@ $ cdk bootstrap
 
 ### Regular deployments
 
-To deploy any changes to the environment, run cdk deploy which will deploy only the changed template resources, the env variable is prefixed to the deployed stack, and to all underlying resources.
+To deploy any changes to the environment, run cdk deploy which will deploy the stack. For subsequent deployments, a CloudFormation Change Set is created which will only the changed template resources. All stack resources include the env variable.
+
+To install and/or update the stack resources:
+
 ```
 $ cdk deploy -c env=Dev
 ```
 
-To destroy the stack, specify -c env=Dev or the environment name that will be destroyed
+To destroy/uninstall the stack, specify -c env=Dev or the environment name that will be destroyed
 ```
-$ cdk deploy -c env=Dev
+$ cdk destroy -c env=Dev
 ```
 
 ### Useful commands
@@ -95,7 +98,8 @@ $ cdk deploy -c env=Dev
 ### Boostrap and deploy the API
 
 1. First bootstrap the CDK project if using a new account (each account only needs bootstrapping one time)
-2. Next, deploy the CDK project by using **_cdk deploy_**
+2. Next, deploy the CDK project by using **_cdk deploy -c env=Dev_** 
+*Change the env variable to any value desired. Ex. dev, test, prod*
 3. Browse to the AWS CloudFormation console.
 4. Check the stack outputs for the DynamoDB role mapping table name, Lambda execution role, and API Gateway deployed endpoint. Save these values locally for later use.
 
@@ -111,7 +115,7 @@ $ cdk deploy -c env=Dev
             "Sid": "Statement1",
             "Effect": "Allow",
             "Principal": {
-                "AWS": "arn:aws:iam::1234567890:role/IamCredentialsApiStack-GetCredentialsServiceRole...YOUR_ROLE_ARN"
+                "AWS": "arn:aws:iam::554161763323:role/IamApiDev-GetCredentialsServiceRole...YOUR_ROLE_ARN"
             },
             "Action": "sts:AssumeRole"
         }
@@ -164,11 +168,14 @@ The head node secret token should also be sent in the Authorization header.
 ```
 python3 localhost_proxy.py --hostname 'your_api_endpoint_here' --cache_mode=store
 ```
-You should include any path beyond the hostname, so be sure to exclude the stage name such as /prod. The default endpoint when not specified is t7b9p81x86.execute-api.us-east-1.amazonaws.com.
+You should not include any path beyond the hostname, so be sure to exclude the stage name such as /prod. The default endpoint when not specified is t7b9p81x86.execute-api.us-east-1.amazonaws.com.
 
-##### Configure cache
+##### Configure local credentials cache
 
-There are two flags that configure the cache behavior, set cache_mode=store which is the default to enable cache, also the amount of items on the cache can be configured with max_queue_size flag, which defaults to 1000000
+There are two flags that configure the localhost proxy credentials cache behavior:
+
+* Set **cache_mode=store** to enable the local credentials cache. This is the default beahvior if not specified.
+* The max amount of items to be stored can be configured with **max_queue_size** flag, which defaults to 1000000. Items beyond this point will be evicted based on cache item age and which are the oldest items in the cache.
 
 ### Configure the CLI or AWS SDKs
 
@@ -185,6 +192,8 @@ output = json
 credential_source = EcsContainer
 ```
 
+Additionally, a new profile can be created with *aws configure* not specifying any credentials which will automatically detect and use the IAM Credentials API credentials.
+
 Be sure that no other access key credentials are set for the profile in the ~/.aws/credentials file. Only the config file is needed so if ~/.aws/credentials does not exist, the credential authentication flow should still work as expected.
 
 ### Integrate compute/worker nodes with Credentials API
@@ -198,7 +207,7 @@ Be sure that no other access key credentials are set for the profile in the ~/.a
     "AWS_CONTAINER_AUTHORIZATION_TOKEN": "6c2ccc8a-b039-481e-80b7-82e6116e1497"
 }
 ```
-As part of the setup on each ndoe, you will also append an additional query string parameter *clusterNodeId* value to the end of the LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI. This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity. This is used as the IAM role session name allowing activity logging, auditing, and revocation for a specific cluster node.
+**As part of the setup on each compute/worker node, you will need to append an additional query string parameter *clusterNodeId* value to the end of the LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI.** This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity. This is used as the IAM role session name allowing activity logging, auditing, and revocation for a specific cluster node.
 
 Set the following two variables on each of the worker nodes:
 
