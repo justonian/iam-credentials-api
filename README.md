@@ -157,9 +157,13 @@ The head node secret token should also be sent in the Authorization header.
 13. Since the AWS CLIs and SDKs only allow retrieving credentials from localhost and a 169... IP address, you next need to install a localhost proxy service. Copy the localhost_proxy.py file to each compute worker node and setup a persistent process to launch this service at boot of each instance.
 
 ```
-python3 localhost_proxy.py --host 'your_api_endpoint_here' 
+python3 localhost_proxy.py --hostname 'your_api_endpoint_here' --cache_mode=store
 ```
 You should include any path beyond the hostname, so be sure to exclude the stage name such as /prod. The default endpoint when not specified is t7b9p81x86.execute-api.us-east-1.amazonaws.com.
+
+##### Configure cache
+
+There are two flags that configure the cache behavior, set cache_mode=store which is the default to enable cache, also the amount of items on the cache can be configured with max_queue_size flag, which defaults to 1000000
 
 ### Configure the CLI or AWS SDKs
 

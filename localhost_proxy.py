@@ -52,14 +52,15 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
             self.send_response(resp.status_code)
             self.send_resp_headers(resp)
             msg = resp.text
-            if resp.status_code == 200:
+            if resp.status_code == 200 and cache_mode == "store":
                 credentials_cache[key] = {
                     "content": resp,
                     "expiration": datetime.fromisoformat(json.loads(msg)["Expiration"][:-6])
                 }
                 cache_keys.put(key)
                 # remove expired items every time we insert, or when queue is big enough
-                while(cache_keys.qsize() >= max_queue_size or datetime.now() >= credentials_cache[cache_keys.queue[0]]["expiration"]):
+                # max_queue_size of 0 indicates it will not bound the queue_size
+                while((max_queue_size > 0 and cache_keys.qsize() >= max_queue_size) or datetime.now() >= credentials_cache[cache_keys.queue[0]]["expiration"]):
                     k = cache_keys.get()
                     print("Removing from cache key", k)
                     del credentials_cache[k]
