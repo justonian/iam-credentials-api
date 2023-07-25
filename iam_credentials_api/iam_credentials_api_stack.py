@@ -11,7 +11,6 @@ from aws_cdk import (
 
 import aws_cdk as core
 
-
 class IamCredentialsApiStack(core.Stack):
 
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
@@ -20,7 +19,7 @@ class IamCredentialsApiStack(core.Stack):
         if not env:
             raise Exception("env is not defined")
 
-        head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret", secret_name="iam-api-" + env)
+        head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret", secret_name="IamApi" + env + "-HeadNodeSecret");
 
         sessions_dynamo_table = dynamodb.Table(self, "SessionsTable",
             partition_key=dynamodb.Attribute(
@@ -64,21 +63,12 @@ class IamCredentialsApiStack(core.Stack):
                 handler=authorizer_lambda,
                 identity_source=apigateway.IdentitySource.header("Authorization"),
             )
-
-
-            authorizer_lambda.add_to_role_policy(iam.PolicyStatement(
-                actions=["dynamodb:Query"],
-                effect=iam.Effect.ALLOW,
-                resources=[sessions_dynamo_table.table_arn]
-            ))
             authorizer_lambda.add_to_role_policy(iam.PolicyStatement(
                 actions=["secretsmanager:GetSecretValue"],
                 effect=iam.Effect.ALLOW,
                 resources=[head_node_secret.secret_arn]
             ))
-
             return authorizer
-
         
         # Lambda functions
         create_session_lambda = lambd.Function(self, "CreateSession",
@@ -124,7 +114,6 @@ class IamCredentialsApiStack(core.Stack):
         iam_role_mapping_dynamo_table.grant_read_data(get_credentials_lambda)
 
         # API Gateway
-
         api = apigateway.RestApi(self, "CredentialsApi",
             deploy_options=apigateway.StageOptions(
                 tracing_enabled=True
@@ -132,8 +121,8 @@ class IamCredentialsApiStack(core.Stack):
             endpoint_types=[
                 apigateway.EndpointType.REGIONAL
             ],
-            rest_api_name="IamApi-"+env,
-            description="Dynamic IAM Credentials Gateway",
+            rest_api_name="IamApi"+env,
+            description="IAM Credentials API" + " " + env,
         )
         auth = create_authorizer()
 

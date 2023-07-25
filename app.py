@@ -9,7 +9,7 @@ from iam_credentials_api.iam_credentials_api_stack import IamCredentialsApiStack
 app = cdk.App()
 env = app.node.try_get_context('env')
 if not env:
-    raise Exception("Env not defined need to specify --context=env=Dev for example")
+    raise Exception("Env not defined. Please include env variable using the following syntax. --context=env=Dev Default env is Dev, but should be updated for production")
 IamCredentialsApiStack(app, "IamApi" + env,
     # If you don't specify 'env', this stack will be environment-agnostic.
     # Account/Region-dependent features and context lookups will not work,
