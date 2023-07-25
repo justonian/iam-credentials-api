@@ -6,12 +6,17 @@ from socketserver import ThreadingMixIn
 import threading
 import json
 from datetime import datetime
+import queue
 
 hostname = ''
 # Configure credentials cache to be enabled by default
 cache_mode = "store"
 
+max_queue_size = 1000000
+
 credentials_cache = {}
+# Queue to remove expired keys
+cache_keys = queue.Queue()
 
 def merge_two_dicts(x, y):
     return x | y
@@ -52,9 +57,12 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                     "content": resp,
                     "expiration": datetime.fromisoformat(json.loads(msg)["Expiration"][:-6])
                 }
-                print("cache")
-                print(key)
-                print(credentials_cache[key])
+                cache_keys.put(key)
+                # remove expired items every time we insert, or when queue is big enough
+                while(cache_keys.qsize() >= max_queue_size or datetime.now() >= credentials_cache[cache_keys.queue[0]]["expiration"]):
+                    k = cache_keys.get()
+                    print("Removing from cache key", k)
+                    del credentials_cache[k]
             if body:
                 self.wfile.write(msg.encode(encoding='UTF-8',errors='strict'))
  
@@ -106,6 +114,8 @@ def parse_args(argv=sys.argv[1:]):
                         help='Serve HTTP requests on specified port (default: 9999)')
     parser.add_argument('--cache_mode', dest='cache_mode', type=str, default="store",
                         help='Cache GET requests until credentials expiration')
+    parser.add_argument('--max_queue_size', dest='max_queue_size', type=int, default=1000000,
+                        help='Cache GET requests until credentials expiration')
     parser.add_argument('--hostname', dest='hostname', type=str, default='t7b9p81x86.execute-api.us-east-1.amazonaws.com',
                         help='Hostname to be processd (default: t7b9p81x86.execute-api.us-east-1.amazonaws.com)')
     args = parser.parse_args(argv)
@@ -117,9 +127,11 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 def main(argv=sys.argv[1:]):
     global hostname
     global cache_mode
+    global max_queue_size
     args = parse_args(argv)
     hostname = args.hostname
     cache_mode = args.cache_mode
+    max_queue_size = args.max_queue_size
     print('HTTP server is starting on {} port {}...'.format(args.hostname, args.port))
     server_address = ('127.0.0.1', args.port)
     httpd = ThreadedHTTPServer(server_address, ProxyHTTPRequestHandler)
