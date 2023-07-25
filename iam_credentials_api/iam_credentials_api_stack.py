@@ -20,7 +20,7 @@ class IamCredentialsApiStack(core.Stack):
         if not env:
             raise Exception("env is not defined")
 
-        head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret", secret_name="head-node-secret-" + env)
+        head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret", secret_name="iam-api-" + env)
 
         sessions_dynamo_table = dynamodb.Table(self, "SessionsTable",
             partition_key=dynamodb.Attribute(
@@ -132,7 +132,7 @@ class IamCredentialsApiStack(core.Stack):
             endpoint_types=[
                 apigateway.EndpointType.REGIONAL
             ],
-            rest_api_name="CredentialsAPI-"+env,
+            rest_api_name="IamApi-"+env,
             description="Dynamic IAM Credentials Gateway",
         )
         auth = create_authorizer()
