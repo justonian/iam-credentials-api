@@ -62,7 +62,8 @@ def handler(event, context):
             'clusterUser': cluster_user,
             'sessionToken': session_token,
             'status': 'ACTIVE'
-        }
+        },
+        ConditionExpression='attribute_not_exists(sessionId)'
     )
 
     return {
