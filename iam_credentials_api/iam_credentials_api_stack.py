@@ -19,7 +19,9 @@ class IamCredentialsApiStack(core.Stack):
         if not env:
             raise Exception("env is not defined")
 
-        head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret", secret_name="IamApi" + env + "-HeadNodeSecret");
+        head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret", secret_name="IamApi" + env + "-HeadNodeSecret")
+        ad_url_secret = secretsmanager.Secret(self, "ADUrlSecret", secret_name="IamApi" + env + "-ADUrlSecret")
+        ad_token_secret = secretsmanager.Secret(self, "ADTokenSecret", secret_name="IamApi" + env + "-ADTokenSecret")
 
         sessions_dynamo_table = dynamodb.Table(self, "SessionsTable",
             partition_key=dynamodb.Attribute(
@@ -30,6 +32,14 @@ class IamCredentialsApiStack(core.Stack):
         )
 
         iam_role_mapping_dynamo_table = dynamodb.Table(self, "IamRoleMappingTable",
+            partition_key=dynamodb.Attribute(
+                name="projectId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            removal_policy=core.RemovalPolicy.DESTROY
+        )
+
+        iam_policy_storage_dynamo_table = dynamodb.Table(self, "IamPolicyStorageTable",
             partition_key=dynamodb.Attribute(
                 name="projectId",
                 type=dynamodb.AttributeType.STRING
@@ -71,6 +81,7 @@ class IamCredentialsApiStack(core.Stack):
             return authorizer
         
         # Lambda functions
+
         create_session_lambda = lambd.Function(self, "CreateSession",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="create_session.handler",
@@ -108,10 +119,29 @@ class IamCredentialsApiStack(core.Stack):
             }
         )
 
+        sync_policies_roles_lambda = lambd.Function(self, "SyncPoliciesRoles",
+            runtime=lambd.Runtime.PYTHON_3_8,
+            handler="sync_policies_roles.handler",
+            code=lambd.Code.from_asset("src"),
+            environment={
+                "IAM_POLICY_STORAGE_TABLE_NAME": iam_policy_storage_dynamo_table.table_name,
+                "IAM_ROLE_MAPPING_TABLE_NAME": iam_role_mapping_dynamo_table.table_name,
+                "URL": ad_url_secret,
+                "TOKEN": ad_token_secret,
+                "LAMBDA_ROLE_ARN": get_credentials_lambda.role.role_arn,
+            },
+            trigger=lambd.Trigger(
+                schedule=lambd.Schedule.rate(core.Duration.minutes(60)),
+                enabled=True
+            )
+        )
+
         sessions_dynamo_table.grant_read_write_data(create_session_lambda)
         sessions_dynamo_table.grant_read_data(get_credentials_lambda)
         sessions_dynamo_table.grant_read_write_data(update_session_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(get_credentials_lambda)
+        iam_policy_storage_dynamo_table.grant_read_write_data(sync_policies_roles_lambda)
+        iam_role_mapping_dynamo_table.grant_read_write_data(sync_policies_roles_lambda)
 
         # API Gateway
         api = apigateway.RestApi(self, "CredentialsApi",
