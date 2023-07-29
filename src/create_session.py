@@ -61,7 +61,12 @@ def handler(event, context):
             'clusterName': cluster_name,
             'clusterUser': cluster_user,
             'sessionToken': session_token,
-            'status': 'ACTIVE'
+            'status': 'ACTIVE',
+            'sessionIdClusterName': f"{session_id}|{cluster_name}",
+            'clusterUserProjectId': f"{cluster_user}|{project_id}",
+            'clusterUserClusterName': f"{cluster_user}|{cluster_name}",
+            'clusterNameProjectId': f"{cluster_name}|{project_id}",
+            'clusterUserProjectIdClusterName': f"{cluster_user}|{project_id}|{cluster_name}",
         },
         ConditionExpression='attribute_not_exists(sessionId)'
     )

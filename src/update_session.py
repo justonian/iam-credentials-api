@@ -20,6 +20,8 @@ def handler(event, context):
             'statusCode': 400,
             'body': 'Invalid JSON format'
         }
+    
+    # the sessionId is not unique, it must be combined with clusterName
     response = table.query(
         KeyConditionExpression='sessionId = :id',
         ExpressionAttributeValues={

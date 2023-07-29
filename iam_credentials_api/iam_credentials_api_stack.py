@@ -47,11 +47,84 @@ class IamCredentialsApiStack(core.Stack):
             removal_policy=core.RemovalPolicy.DESTROY
         )
 
-        # Global Secondary Index
+        # Global Secondary Indexes
+
+        session_cluster_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="SessionClusterGSI",
+            partition_key=dynamodb.Attribute(
+                name="sessionIdClusterName",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
         session_token_gsi = sessions_dynamo_table.add_global_secondary_index(
             index_name="SessionTokenGSI",
             partition_key=dynamodb.Attribute(
                 name="sessionToken",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
+        user_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="UserGSI",
+            partition_key=dynamodb.Attribute(
+                name="clusterUser",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
+        project_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="ProjectGSI",
+            partition_key=dynamodb.Attribute(
+                name="projectId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
+        cluster_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="ClusterGSI",
+            partition_key=dynamodb.Attribute(
+                name="clusterName",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
+        user_project_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="UserProjectGSI",
+            partition_key=dynamodb.Attribute(
+                name="clusterUserProjectId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )        
+
+        user_cluster_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="UserClusterGSI",
+            partition_key=dynamodb.Attribute(
+                name="clusterUserClusterName",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
+        cluster_project_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="ClusterProjectGSI",
+            partition_key=dynamodb.Attribute(
+                name="clusterNameProjectId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
+        user_project_cluster_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="UserProjectClusterGSI",
+            partition_key=dynamodb.Attribute(
+                name="clusterUserProjectIdClusterName",
                 type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.ALL
@@ -110,9 +183,27 @@ class IamCredentialsApiStack(core.Stack):
         # Add inline policy to Lambda function's role
         get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
 
+        get_sessions_lambda = lambd.Function(self, "UpdateSession",
+            runtime=lambd.Runtime.PYTHON_3_8,
+            handler="get_sessions.handler",
+            code=lambd.Code.from_asset("src"),
+            environment={
+                "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name
+            }
+        )
+
         update_session_lambda = lambd.Function(self, "UpdateSession",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="update_session.handler",
+            code=lambd.Code.from_asset("src"),
+            environment={
+                "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name
+            }
+        )
+
+        invalidate_sessions_lambda = lambd.Function(self, "UpdateSession",
+            runtime=lambd.Runtime.PYTHON_3_8,
+            handler="invalidate_sessions.handler",
             code=lambd.Code.from_asset("src"),
             environment={
                 "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name
@@ -165,9 +256,20 @@ class IamCredentialsApiStack(core.Stack):
             authorizer=auth,
         )
         session_resource_child = session_resource.add_resource("{sessionId}")
+        
+        session_resource_child.add_method(
+            "GET",
+            apigateway.LambdaIntegration(get_sessions_lambda),
+            authorizer=auth,
+        )
         session_resource_child.add_method(
             "PUT",
             apigateway.LambdaIntegration(update_session_lambda),
+            authorizer=auth,
+        )
+        session_resource_child.add_method(
+            "DELETE",
+            apigateway.LambdaIntegration(invalidate_sessions_lambda),
             authorizer=auth,
         )
 
