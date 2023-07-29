@@ -183,7 +183,7 @@ class IamCredentialsApiStack(core.Stack):
         # Add inline policy to Lambda function's role
         get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
 
-        get_sessions_lambda = lambd.Function(self, "UpdateSession",
+        get_sessions_lambda = lambd.Function(self, "GetSessions",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="get_sessions.handler",
             code=lambd.Code.from_asset("src"),
@@ -201,7 +201,7 @@ class IamCredentialsApiStack(core.Stack):
             }
         )
 
-        invalidate_sessions_lambda = lambd.Function(self, "UpdateSession",
+        invalidate_sessions_lambda = lambd.Function(self, "InvalidateSessions",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="invalidate_sessions.handler",
             code=lambd.Code.from_asset("src"),
