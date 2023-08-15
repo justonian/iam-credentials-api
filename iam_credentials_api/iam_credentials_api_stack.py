@@ -23,15 +23,19 @@ class IamCredentialsApiStack(core.Stack):
 
         sessions_dynamo_table = dynamodb.Table(self, "SessionsTable",
             partition_key=dynamodb.Attribute(
-                name="sessionId",
+                name="ClusterNameSessionId",
                 type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="SubmittedTime",
+                type=dynamodb.AttributeType.NUMBER
             ),
             removal_policy=core.RemovalPolicy.DESTROY
         )
 
         iam_role_mapping_dynamo_table = dynamodb.Table(self, "IamRoleMappingTable",
             partition_key=dynamodb.Attribute(
-                name="projectId",
+                name="ProjectId",
                 type=dynamodb.AttributeType.STRING
             ),
             removal_policy=core.RemovalPolicy.DESTROY
@@ -41,7 +45,7 @@ class IamCredentialsApiStack(core.Stack):
         session_token_gsi = sessions_dynamo_table.add_global_secondary_index(
             index_name="SessionTokenGSI",
             partition_key=dynamodb.Attribute(
-                name="sessionToken",
+                name="SessionToken",
                 type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.ALL
@@ -134,7 +138,7 @@ class IamCredentialsApiStack(core.Stack):
             apigateway.LambdaIntegration(create_session_lambda),
             authorizer=auth,
         )
-        session_resource_child = session_resource.add_resource("{sessionId}")
+        session_resource_child = session_resource.add_resource("{sessionId}").add_resource("cluster").add_resource("{clusterId}")
         session_resource_child.add_method(
             "PUT",
             apigateway.LambdaIntegration(update_session_lambda),
@@ -142,8 +146,6 @@ class IamCredentialsApiStack(core.Stack):
         )
 
         session_resource_child.add_resource(
-            "cluster").add_resource(
-            "{clusterId}").add_resource(
             "project").add_resource(
             "{projectId}").add_method(
             "GET",

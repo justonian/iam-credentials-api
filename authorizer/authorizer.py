@@ -35,7 +35,7 @@ def handler(event, context):
 
         response = table.query(
             IndexName=index_name,
-            KeyConditionExpression='sessionToken = :token',
+            KeyConditionExpression='SessionToken = :token',
             ExpressionAttributeValues={
                 ':token': session_token
             }
@@ -64,7 +64,7 @@ def handler(event, context):
             # No token exists on the database - deny access to all methods
             policy.deny_all_methods()
         else:
-            policy.allow_method(HttpVerb.GET, "sessions/" + items[0]["sessionId"] + "/*")
+            policy.allow_method(HttpVerb.GET, "sessions/" + items[0]["SessionId"] + "/*")
 
     # Finally, build the policy and return effective policy
     auth_response = policy.build()

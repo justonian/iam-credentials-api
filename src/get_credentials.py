@@ -11,12 +11,15 @@ iam_role_mapping_table = dynamodb.Table(iam_role_mapping_table_name)
 def handler(event, context):
     # Lookup Role ARN for project associated with job session
     response = sessions_table.query(
-        KeyConditionExpression='sessionId = :id',
+        KeyConditionExpression='ClusterNameSessionId = :clusterNameSessionId',
         ExpressionAttributeValues={
-            ':id': event["pathParameters"]["sessionId"]
-        }
+            ':clusterNameSessionId': event["pathParameters"]["clusterId"] + "-" + event["pathParameters"]["sessionId"],
+        },
+        ScanIndexForward=False,
+        Limit=1
     )
     items = response['Items']
+    print("items", items)
 
     if len(items) != 1:
         return {
@@ -26,27 +29,27 @@ def handler(event, context):
     # /sessions/{id}/cluster/{id}/project/{id}
     session = items[0]
     response = iam_role_mapping_table.query(
-        KeyConditionExpression='projectId = :id',
+        KeyConditionExpression='ProjectId = :id',
         ExpressionAttributeValues={
-            ':id': session["projectId"]
+            ':id': session["ProjectId"]
         }
     )
-    if "status" not in session:
+    if "Status" not in session:
         return {
             'statusCode': 500,
             'body': json.dumps({"message": "All sessions must have a status"})
         }
-    if session["clusterName"] != event["pathParameters"]["clusterId"]:
+    if session["ClusterName"] != event["pathParameters"]["clusterId"]:
         return {
             'statusCode': 400,
             'body': '{"message": "clusterId does not match session clusterId"}'
         }
-    if session["projectId"] != event["pathParameters"]["projectId"]:
+    if session["ProjectId"] != event["pathParameters"]["projectId"]:
         return {
             'statusCode': 400,
             'body': '{"message": "projectId does not match session projectId"}'
         }
-    if session["status"] not in ["ACTIVE"]:
+    if session["Status"] not in ["ACTIVE"]:
         return {
             'statusCode': 403,
             'body': '{"message": "session is not ACTIVE"}'
@@ -59,15 +62,15 @@ def handler(event, context):
         }
     role_mapping = items[0]
     assume_role_args = {
-       "RoleArn": role_mapping["roleArn"]
+       "RoleArn": role_mapping["RoleArn"]
     }
     
-    if event["queryStringParameters"] and "clusterNodeId" in event["queryStringParameters"]:
-        assume_role_args["RoleSessionName"] = event["queryStringParameters"]["clusterNodeId"]
+    if event["queryStringParameters"] and "roleSessionName" in event["queryStringParameters"]:
+        assume_role_args["RoleSessionName"] = event["queryStringParameters"]["roleSessionName"]
     else:
         return {
             'statusCode': 400,
-            'body': '{"message": "Missing clusterNodeId queryParameter"}'
+            'body': '{"message": "Missing roleSessionName queryParameter"}'
         }
     out = assume_iam_role(assume_role_args)
     return {

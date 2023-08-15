@@ -125,7 +125,7 @@ $ cdk destroy -c env=Dev
 ### Populating the DynamoDB Role Mapping table
 
 6. Browse to the DynamoDB role mapping table that was specified in the CloudFormation stack outputs.
-7. Manually populate this table one item for each SLURM project ID. The items should use projectID as the partition key and have an attribute called roleArn. These are case sensititve attributes.
+7. Manually populate this table one item for each SLURM project ID. The items should use ProjectId as the partition key and have an attribute called RoleArn. These are case sensititve attributes.
 
 ### Establish the head node secret for head node API authentication
 
@@ -149,6 +149,7 @@ Request body should include the following payload attributes:
     "projectId": "abc",
     "clusterName": "alpha",
     "clusterUser": "user1"
+    "submittedTime": "2023-08-14T01:30:00"
 }
 
 8. The SLURM head node should invoke the **/sessions/{sessionId}** PUT method upon job/session completion or failure. Only the job/session status can be set. Valid session statuses include ACTIVE and COMPLETED.
