@@ -9,30 +9,45 @@ table_name = os.environ['SESSIONS_TABLE_NAME']
 table = dynamodb.Table(table_name)
 
 def handler(event, context):
+    # Validate body is present and proper JSON
     try:
         body = json.loads(event['body'])
     except KeyError:
         return {
             'statusCode': 400,
-            'body': 'Missing request body'
+            'body': json.dumps({"message": "Missing request body"})
         }
     except json.JSONDecodeError:
         return {
             'statusCode': 400,
-            'body': 'Invalid JSON format'
+            'body': json.dumps({"message": "Invalid JSON format"})
         }
+
+    # Validate all session creation properties are present and valid
+    required_properties = ['sessionId', 'projectId', 'clusterName', 'clusterUser', 'submittedTime']
+    for property in required_properties:
+        if property not in body:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({"message": "Missing property " + property + " in JSON body"})
+            }
+    
     # Extract request parameters
     session_id = body['sessionId']
     project_id = body['projectId']
     cluster_name = body['clusterName']
     cluster_user = body['clusterUser']
     submitted_time_string = body['submittedTime']
-    submitted_time_number = int(datetime.strptime(submitted_time_string, "%Y-%m-%dT%H:%M:%S").timestamp())
+    try:
+        submitted_time_number = int(datetime.strptime(submitted_time_string, "%Y-%m-%dT%H:%M:%S").timestamp())
+    except:
+        return {
+                'statusCode': 400,
+                'body': json.dumps({"message": "submittedTime not in ISO 8601 format"})
+            }
 
     # Generate session token and construct response
     session_token = str(uuid.uuid4())
-    print(event)
-    print(context)
     # domainName and path from requestContext contain the path all the way to sessions/ complete
     # the path with sessionId/cluster/clusterId/project/projectId
     api_gateway_endpoint = event['requestContext']['domainName'] + event['requestContext']['path']  # Replace with your API Gateway endpoint
