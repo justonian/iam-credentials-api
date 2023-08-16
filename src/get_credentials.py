@@ -24,16 +24,15 @@ def handler(event, context):
     if len(items) != 1:
         return {
             'statusCode': 404,
-            'body': json.dumps({"message": "sessionId does not exists"})
+            'body': json.dumps({"message": "clusterId and sessionId provided do not exist"})
         }
     # /sessions/{id}/cluster/{id}/project/{id}
     session = items[0]
-    response = iam_role_mapping_table.query(
-        KeyConditionExpression='ProjectId = :id',
-        ExpressionAttributeValues={
-            ':id': session["ProjectId"]
+    if session["SessionToken"] != event["headers"]["Authorization"]:
+        return {
+            'statusCode': 403,
+            'body': '{"message": "Session token provided does not match active clusterId and sessionId"}'
         }
-    )
     if "Status" not in session:
         return {
             'statusCode': 500,
@@ -54,6 +53,13 @@ def handler(event, context):
             'statusCode': 403,
             'body': '{"message": "session is not ACTIVE"}'
         }
+    
+    response = iam_role_mapping_table.query(
+        KeyConditionExpression='ProjectId = :id',
+        ExpressionAttributeValues={
+            ':id': session["ProjectId"]
+        }
+    )
     items = response['Items']
     if len(items) != 1:
         return {

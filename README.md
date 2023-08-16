@@ -11,7 +11,7 @@ To enable transparent integration to any existing jobs that use the AWS CLI or S
 
 * **/sessions (POST)** - Create a new session/job. Exclusively for use by SLURM head node  
 * **/sessions/{sessionId} (PUT)** - Update an existing session. Exclusively for use by SLURM head node  
-* **/sessions/{sessionId}/cluster/{clusterId}/project/{projectId}?clusterNodeId={clusterNodeId} (GET)** - Retrieves IAM role credentails with access key, secret access key, and session token. Used by all compute/worker nodes running a given job/session.
+* **/sessions/{sessionId}/cluster/{clusterId}/project/{projectId}?roleSessionName={roleSessionName} (GET)** - Retrieves IAM role credentails with access key, secret access key, and session token. Used by all compute/worker nodes running a given job/session.
 
 Additional methods and paths to be added shortly, such as revocation paths.
  
@@ -134,7 +134,7 @@ $ cdk destroy -c env=Dev
 10. You can now Edit to include your customzied secret specific to head node or copy the existing auto-generated secret and provide to the head node in a secure way.
 11. Whichever secret you choose, save the secret and popuate the secret on the head node for use when authenticating to the head node.
 
-*Note: This is a temporary PoC setup and the head node authentication should be hardened to use IAM-based authorization or time-limited bearer tokens (OAuth flows) as a more secure approach for a productioin installation.*
+*Note: This is a temporary PoC setup and the head node authentication should ideally be hardened to use IAM-based authorization or time-limited bearer tokens (OAuth flows) as a more secure approach for a productioin installation.*
 
 ### Setting up SLURM head node integration
 
@@ -149,10 +149,10 @@ Request body should include the following payload attributes:
     "projectId": "abc",
     "clusterName": "alpha",
     "clusterUser": "user1"
-    "submittedTime": "2023-08-14T01:30:00"
+    "submittedTime": "2023-08-15T00:00:00"
 }
 
-8. The SLURM head node should invoke the **/sessions/{sessionId}** PUT method upon job/session completion or failure. Only the job/session status can be set. Valid session statuses include ACTIVE and COMPLETED.
+8. The SLURM head node should invoke the **/sessions/{sessionId}** PUT method upon job/session completion or failure. Only the job/session status can be set. Valid session statuses include ACTIVE, INVALIDATED, and COMPLETED.
 
 {
     "status": "ACTIVE"
@@ -203,16 +203,18 @@ Be sure that no other access key credentials are set for the profile in the ~/.a
 
 ```
 {
-    "APIGATEWAY_AWS_CONTAINER_CREDENTIALS_FULL_URI": "https://ygefc1fgof.execute-api.us-west-2.amazonaws.com/prod/sessions/11100/cluster/alpha/project/abc",
-    "LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI": "http://localhost:9999/sessions/11100/cluster/alpha/project/abc",
-    "AWS_CONTAINER_AUTHORIZATION_TOKEN": "6c2ccc8a-b039-481e-80b7-82e6116e1497"
+    "APIGATEWAY_AWS_CONTAINER_CREDENTIALS_FULL_URI": "https://uwulcdei61.execute-api.us-east-1.amazonaws.com/prod/sessions/1321/cluster/alpha/project/abc",
+    "LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI": "http://localhost:9999/prod/sessions/1321/cluster/alpha/project/abc",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN": "c8f16d73-7152-43a8-97fc-14f2575308fb"
 }
 ```
-**As part of the setup on each compute/worker node, you will need to append an additional query string parameter *clusterNodeId* value to the end of the LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI.** This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity. This is used as the IAM role session name allowing activity logging, auditing, and revocation for a specific cluster node.
+**As part of the setup on each compute/worker node, you will need to append an additional query string parameter *roleSessionName* value to the end of the LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI.** This will ensure each node uses a unique IAM role session name to better track audit history of each node's activity. This is used as the IAM role session name allowing activity logging, auditing, and revocation for a specific cluster node.
+
+*To fully support all revocation scenarios, the roleSessionName string is recommended to be the following structure: clusterName-userId-clusterNodeId.*
 
 Set the following two variables on each of the worker nodes:
 
-AWS_CONTAINER_CREDENTIALS_FULL_URI="http://localhost:9999/sessions/11100/cluster/alpha/project/abc?clusterNodeId=phoenix"
+AWS_CONTAINER_CREDENTIALS_FULL_URI="http://localhost:9999/sessions/11100/cluster/alpha/project/abc?roleSessionName=clusterName-userId-clusterNodeId"
 
 *You should always use the localhost API endpoint provided in the return response from the creation session call along with the appended cluster node ID query string parameter.*
 

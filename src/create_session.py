@@ -42,37 +42,30 @@ def handler(event, context):
         'LOCALHOST_AWS_CONTAINER_CREDENTIALS_FULL_URI': f"http://localhost:9999/{api_gateway_endpoint_path}/{session_id}/cluster/{cluster_name}/project/{project_id}",
         'AWS_CONTAINER_AUTHORIZATION_TOKEN': session_token
     }
-    # Check if sessionId already exists
-    session_response = table.query(
-        KeyConditionExpression='ClusterNameSessionId = :clusterNameSessionId AND SubmittedTime = :submittedTimeId',
-        ExpressionAttributeValues={
-            ':clusterNameSessionId': cluster_name + "-" + session_id,
-            ':submittedTimeId': submitted_time_number
-        }
-    )
-    session_list = session_response['Items']
+    
+    # TODO: Add logic to handle previuos sessions with same clusterId and sessionId. One option is to update those previous sessions to "Completed" here
 
-    if len(session_list) > 0:
+    # Write new session details to DynamoDB table
+    try:
+        table.put_item(
+            Item={
+                'ClusterNameSessionId': cluster_name + "-" + session_id,
+                'SessionId': session_id,
+                'ProjectId': project_id,
+                'ClusterName': cluster_name,
+                'ClusterUser': cluster_user,
+                'SessionToken': session_token,
+                'Status': 'ACTIVE',
+                'SubmittedTime': submitted_time_number
+            },
+            ConditionExpression='attribute_not_exists(SessionId)'
+        )
+        return {
+            'statusCode': 200,
+            'body': json.dumps(response)
+            }
+    except:
         return {
             'statusCode': 400,
             'body': json.dumps({"message": "Cluster Name, Session ID, and Submitted Time already exist."})
         }
-    # Write session token to DynamoDB table
-    table.put_item(
-        Item={
-            'ClusterNameSessionId': cluster_name + "-" + session_id,
-            'SessionId': session_id,
-            'ProjectId': project_id,
-            'ClusterName': cluster_name,
-            'ClusterUser': cluster_user,
-            'SessionToken': session_token,
-            'Status': 'ACTIVE',
-            'SubmittedTime': submitted_time_number
-        },
-        ConditionExpression='attribute_not_exists(sessionId)'
-    )
-
-    return {
-        'statusCode': 200,
-        'body': json.dumps(response)
-    }

@@ -45,11 +45,10 @@ def handler(event, context):
         }
     # /sessions/{id}/cluster/{id}/project/{id}
     session = items[0]
-    # TODO Validate status
-    if session['Status'] not in ["COMPLETED", "ACTIVE"]:
+    if body['status'] not in ["COMPLETED", "ACTIVE", "INVALIDATED"]:
         return {
             'statusCode': 400,
-            'body': json.dumps({"message": "Status can only be updated to ACTIVE or COMPLETED"})
+            'body': json.dumps({"message": "Status can only be updated to ACTIVE, COMPLETED, or INVALIDATED"})
         }
     session['Status'] = body['status']
 

@@ -11,12 +11,10 @@ import time
 import urllib.request
 import boto3
 
-
 def handler(event, context):
     if handler.head_node_secret is None:
         secretsclient = boto3.client('secretsmanager')
         handler.head_node_secret = secretsclient.get_secret_value(SecretId=os.environ['HEAD_NODE_SECRET'])['SecretString']
-    print(event)
     # print("Client token: " + event['authorizationToken'])
     # print("Method ARN: " + event['methodArn'])
     tmp = event['methodArn'].split(':')
@@ -42,11 +40,10 @@ def handler(event, context):
         )
 
         items = response['Items']
-        print(items)
         return items
     principal_id = event['authorizationToken']
 
-    # Sample URI for reference: /sessions/{id}/cluster/{id}/project/{id}
+    # Sample URI path for reference: /sessions/{id}/cluster/{id}/project/{id}
 
     # initialize the policy
     policy = AuthPolicy(principal_id, aws_account_id)
@@ -58,6 +55,7 @@ def handler(event, context):
         policy.allow_method(HttpVerb.POST, "sessions")
         policy.allow_method(HttpVerb.POST, "sessions/")
         policy.allow_method(HttpVerb.PUT, "sessions/*")
+        policy.allow_method(HttpVerb.DELETE, "sessions/*")
     else:
         items = get_item_by_session_token(principal_id)
         if len(items) != 1:
