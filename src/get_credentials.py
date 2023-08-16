@@ -31,7 +31,7 @@ def handler(event, context):
     if session["SessionToken"] != event["headers"]["Authorization"]:
         return {
             'statusCode': 403,
-            'body': '{"message": "Session token provided does not match active clusterId and sessionId"}'
+            'body': '{"message": "Session token provided does not match active/latest clusterId and sessionId"}'
         }
     if "Status" not in session:
         return {

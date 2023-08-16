@@ -150,8 +150,15 @@ class IamCredentialsApiStack(core.Stack):
             resources=["*"]
         )
 
+        iam_revocation_inline_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=["iam:GetRole", "iam:PutRolePolicy"],
+            resources=["*"]
+        )
+
         # Add inline policy to Lambda function's role
         get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
+        delete_user_sessions_lambda.role.add_to_policy(iam_revocation_inline_policy)
 
         update_session_lambda = lambd.Function(self, "UpdateSession",
             runtime=lambd.Runtime.PYTHON_3_8,
