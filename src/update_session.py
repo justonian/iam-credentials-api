@@ -2,6 +2,7 @@ import json
 import uuid
 import os
 import boto3
+import time
 from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
@@ -37,6 +38,7 @@ def handler(event, context):
         Limit=1
     )
     items = response['Items']
+    print('items', items)
 
     if len(items) != 1:
         return {
@@ -51,13 +53,19 @@ def handler(event, context):
             'body': json.dumps({"message": "Status can only be updated to ACTIVE, COMPLETED, or INVALIDATED"})
         }
     session['Status'] = body['status']
+    session['LastUpdatedTime'] = get_current_epoch_time()
 
     # Write session token to DynamoDB table
     table.put_item(
         Item=session
     )
     del session['SessionToken']
+    session['LastUpdatedTime'] = str(session['LastUpdatedTime'])
     return {
         'statusCode': 200,
         'body': json.dumps(session, cls=DecimalEncoder)
     }
+
+def get_current_epoch_time():
+    epoch_time = int(time.time())
+    return epoch_time

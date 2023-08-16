@@ -56,7 +56,8 @@ def handler(event, context):
                 'ClusterUser': cluster_user,
                 'SessionToken': session_token,
                 'Status': 'ACTIVE',
-                'SubmittedTime': submitted_time_number
+                'SubmittedTime': submitted_time_number,
+                'LastUpdatedTime': submitted_time_number
             },
             ConditionExpression='attribute_not_exists(SessionId)'
         )

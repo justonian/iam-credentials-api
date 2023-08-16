@@ -39,6 +39,7 @@ def handler(event, context):
     # Update active sessions for user to invalidated status. Lookup all applicable IAM role ARNs associated to projects
     for item in items:
         item["Status"] = "INVALIDATED"
+        item["LastUpdatedTime"] = get_current_epoch_time()
         sessions_table.put_item(Item=item)
         role_arns.add(query_role_arn(item["ProjectId"]))
     for role_arn in role_arns:
@@ -109,7 +110,7 @@ def put_role_revocation_policy(revocation_time, role_arn, role_session_name_patt
         print('role_id', role_id)
         response = iam.put_role_policy(
             RoleName=role_name,
-            PolicyName=str(revocation_time) + "-" + remove_non_alphanumeric(role_session_name_pattern),
+            PolicyName="Revocation-" + str(revocation_time) + "-" + remove_non_alphanumeric(role_session_name_pattern),
             PolicyDocument=json.dumps(generate_iam_revocation_policy(revocation_time, role_id, role_session_name_pattern))
         )
         return response
