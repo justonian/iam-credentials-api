@@ -35,7 +35,7 @@ def handler(event, context):
     )
     items = response['Items']
     role_arns = set()
-    print("items", items)
+    print("Active sessions for revocation associated with user", items)
     # Update active sessions for user to invalidated status. Lookup all applicable IAM role ARNs associated to projects
     for item in items:
         item["Status"] = "INVALIDATED"
@@ -44,7 +44,7 @@ def handler(event, context):
         role_arns.add(query_role_arn(item["ProjectId"]))
     for role_arn in role_arns:
         put_role_revocation_policy(revocation_time, role_arn, role_session_name_pattern)
-    print('role_arns', role_arns)
+    print('Role ARNs associated with user sessions for revocation ', role_arns)
     return {
             'statusCode': 200,
             'body': '{}'
@@ -107,10 +107,9 @@ def put_role_revocation_policy(revocation_time, role_arn, role_session_name_patt
     if role_name:
         response = iam.get_role(RoleName=role_name)
         role_id = response["Role"]["RoleId"]
-        print('role_id', role_id)
         response = iam.put_role_policy(
             RoleName=role_name,
-            PolicyName="Revocation-" + str(revocation_time) + "-" + remove_non_alphanumeric(role_session_name_pattern),
+            PolicyName="Revocation-" + str(revocation_time) + "-" + "User-" + remove_non_alphanumeric(role_session_name_pattern),
             PolicyDocument=json.dumps(generate_iam_revocation_policy(revocation_time, role_id, role_session_name_pattern))
         )
         return response

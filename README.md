@@ -12,6 +12,7 @@ To enable transparent integration to any existing jobs that use the AWS CLI or S
 * **/sessions (POST)** - Create a new session/job. Exclusively for use by SLURM head node  
 * **/sessions/{sessionId} (PUT)** - Update an existing session. Exclusively for use by SLURM head node  
 * **/sessions/{sessionId}/cluster/{clusterId}/project/{projectId}?roleSessionName={roleSessionName} (GET)** - Retrieves IAM role credentails with access key, secret access key, and session token. Used by all compute/worker nodes running a given job/session.
+* **/sessions/users/{userId} (DELETE)** - Invalidate all active sessions for specified user, and revoke all existing IAM credentials issued to user's sessions.
 
 Additional methods and paths to be added shortly, such as revocation paths.
  

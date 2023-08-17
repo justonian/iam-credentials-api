@@ -38,7 +38,7 @@ def handler(event, context):
         Limit=1
     )
     items = response['Items']
-    print('items', items)
+    print('Session item for update', items)
 
     if len(items) != 1:
         return {

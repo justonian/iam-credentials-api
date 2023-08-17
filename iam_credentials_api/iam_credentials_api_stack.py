@@ -6,7 +6,9 @@ from aws_cdk import (
     aws_apigateway as apigateway,
     aws_iam as iam,
     CfnOutput,
-    aws_secretsmanager as secretsmanager
+    aws_secretsmanager as secretsmanager,
+    aws_events as events,
+    aws_events_targets as targets
 )
 
 import aws_cdk as core
@@ -66,6 +68,18 @@ class IamCredentialsApiStack(core.Stack):
             ),
             projection_type=dynamodb.ProjectionType.ALL
         )
+        last_updated_time_gsi = sessions_dynamo_table.add_global_secondary_index(
+            index_name="LastUpdatedTimeGSI",
+            partition_key=dynamodb.Attribute(
+                name="ClusterNameSessionId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="LastUpdatedTime",
+                type=dynamodb.AttributeType.NUMBER
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
         project_id_gsi = sessions_dynamo_table.add_global_secondary_index(
             index_name="ProjectIdGSI",
             partition_key=dynamodb.Attribute(
@@ -115,6 +129,16 @@ class IamCredentialsApiStack(core.Stack):
             ))
             return authorizer
         
+        cleanup_session_revocations_lambda = lambd.Function(self, "CleanupSessionRevocations",
+            runtime=lambd.Runtime.PYTHON_3_8,
+            handler="cleanup_session_revocations.handler",
+            code=lambd.Code.from_asset("src"),
+            environment={
+                "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name,
+                "IAM_ROLE_MAPPING_TABLE_NAME": iam_role_mapping_dynamo_table.table_name,
+            }
+        )
+        
         create_session_lambda = lambd.Function(self, "CreateSession",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="create_session.handler",
@@ -144,22 +168,6 @@ class IamCredentialsApiStack(core.Stack):
             }
         )
 
-        get_credentials_inline_policy = iam.PolicyStatement(
-            effect=iam.Effect.ALLOW,
-            actions=["sts:AssumeRole"],
-            resources=["*"]
-        )
-
-        iam_revocation_inline_policy = iam.PolicyStatement(
-            effect=iam.Effect.ALLOW,
-            actions=["iam:GetRole", "iam:PutRolePolicy"],
-            resources=["*"]
-        )
-
-        # Add inline policy to Lambda function's role
-        get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
-        delete_user_sessions_lambda.role.add_to_policy(iam_revocation_inline_policy)
-
         update_session_lambda = lambd.Function(self, "UpdateSession",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="update_session.handler",
@@ -169,16 +177,51 @@ class IamCredentialsApiStack(core.Stack):
             }
         )
 
+        get_credentials_inline_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=["sts:AssumeRole"],
+            resources=["*"]
+        )
+
+        iam_put_revocation_inline_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=["iam:GetRole", "iam:PutRolePolicy"],
+            resources=["*"]
+        )
+
+        iam_remove_revocation_inline_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=["iam:DeleteRolePolicy", "iam:ListRolePolicies"],
+            resources=["*"]
+        )
+
+        # Add inline policy to Lambda function's role when custom policy needed. DynamoDB access provided separately below.
+        cleanup_session_revocations_lambda.role.add_to_policy(iam_remove_revocation_inline_policy)
+        get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
+        delete_user_sessions_lambda.role.add_to_policy(iam_put_revocation_inline_policy)
+
+        # Grant Lambda functions read and/or write access to respective DynamoDB tables
+        sessions_dynamo_table.grant_read_write_data(cleanup_session_revocations_lambda)
         sessions_dynamo_table.grant_read_write_data(create_session_lambda)
         sessions_dynamo_table.grant_read_write_data(delete_user_sessions_lambda)
         sessions_dynamo_table.grant_read_data(get_credentials_lambda)
         sessions_dynamo_table.grant_read_write_data(update_session_lambda)
+        iam_role_mapping_dynamo_table.grant_read_data(cleanup_session_revocations_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(delete_user_sessions_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(get_credentials_lambda)
+
+        # Setup recurring daily schedule for cleanup Lambda function
+        cleanup_schedule_rule = events.Rule(self, 'CleanupScheduleRule', schedule=events.Schedule.cron(
+                hour="1",
+                minute="0"
+           )
+        )
+        cleanup_schedule_rule.add_target(targets.LambdaFunction(cleanup_session_revocations_lambda))
 
         # API Gateway
         api = apigateway.RestApi(self, "CredentialsApi",
             deploy_options=apigateway.StageOptions(
+                stage_name=env.lower(),
                 tracing_enabled=True
             ),
             endpoint_types=[
