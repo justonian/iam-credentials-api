@@ -222,7 +222,7 @@ class IamCredentialsApiStack(core.Stack):
         api = apigateway.RestApi(self, "CredentialsApi",
             deploy_options=apigateway.StageOptions(
                 stage_name=env.lower(),
-                tracing_enabled=True
+                tracing_enabled=False
             ),
             endpoint_types=[
                 apigateway.EndpointType.REGIONAL
