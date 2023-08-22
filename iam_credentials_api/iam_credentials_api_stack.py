@@ -148,6 +148,7 @@ class IamCredentialsApiStack(core.Stack):
             }
         )
 
+        '''
         delete_user_sessions_lambda = lambd.Function(self, "DeleteUserSessions",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="delete_user_sessions.handler",
@@ -157,7 +158,8 @@ class IamCredentialsApiStack(core.Stack):
                 "IAM_ROLE_MAPPING_TABLE_NAME": iam_role_mapping_dynamo_table.table_name,
             }
         )
-
+        '''
+        
         delete_filtered_sessions_lambda = lambd.Function(self, "DeleteFilteredSessions",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="delete_filtered_sessions.handler",
@@ -218,19 +220,19 @@ class IamCredentialsApiStack(core.Stack):
         cleanup_session_revocations_lambda.role.add_to_policy(iam_remove_revocation_inline_policy)
         get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
         get_sessions_lambda.role.add_to_policy(get_credentials_inline_policy)
-        delete_user_sessions_lambda.role.add_to_policy(iam_put_revocation_inline_policy)
+        #delete_user_sessions_lambda.role.add_to_policy(iam_put_revocation_inline_policy)
         delete_filtered_sessions_lambda.role.add_to_policy(iam_put_revocation_inline_policy)
 
         # Grant Lambda functions read and/or write access to respective DynamoDB tables
         sessions_dynamo_table.grant_read_write_data(cleanup_session_revocations_lambda)
         sessions_dynamo_table.grant_read_write_data(create_session_lambda)
-        sessions_dynamo_table.grant_read_write_data(delete_user_sessions_lambda)
+        #sessions_dynamo_table.grant_read_write_data(delete_user_sessions_lambda)
         sessions_dynamo_table.grant_read_write_data(delete_filtered_sessions_lambda)
         sessions_dynamo_table.grant_read_data(get_credentials_lambda)
         sessions_dynamo_table.grant_read_data(get_sessions_lambda)
         sessions_dynamo_table.grant_read_write_data(update_session_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(cleanup_session_revocations_lambda)
-        iam_role_mapping_dynamo_table.grant_read_data(delete_user_sessions_lambda)
+        #iam_role_mapping_dynamo_table.grant_read_data(delete_user_sessions_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(delete_filtered_sessions_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(get_credentials_lambda)
 
