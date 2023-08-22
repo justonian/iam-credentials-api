@@ -96,7 +96,7 @@ def handler(event, context):
     if len(items) > 0:
         return {
             'statusCode': 200,
-            'body': json.dumps(items)
+            'body': json.dumps(items, default=str)
         }
     
     return {
