@@ -23,8 +23,17 @@ class IamCredentialsApiStack(core.Stack):
 
         # Secrets manager secret for head node authentication
         head_node_secret = secretsmanager.Secret(self, "HeadNodeSecret", secret_name="IamApi" + env + "-HeadNodeSecret");
-
+        ad_url_secret = secretsmanager.Secret(self, "ADUrlSecret", secret_name="IamApi" + env + "-ADUrlSecret")
+        ad_token_secret = secretsmanager.Secret(self, "ADTokenSecret", secret_name="IamApi" + env + "-ADTokenSecret")
         # DynanoDB Tables
+        iam_policy_storage_dynamo_table = dynamodb.Table(self, "IamPolicyStorageTable",
+            partition_key=dynamodb.Attribute(
+                name="projectId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            removal_policy=core.RemovalPolicy.DESTROY
+        )
+
         sessions_dynamo_table = dynamodb.Table(self, "SessionsTable",
             partition_key=dynamodb.Attribute(
                 name="ClusterNameSessionId",
@@ -195,6 +204,23 @@ class IamCredentialsApiStack(core.Stack):
             resources=["*"]
         )
 
+        sync_policies_roles_lambda = lambd.Function(self, "SyncPoliciesRoles",
+            runtime=lambd.Runtime.PYTHON_3_8,
+            handler="sync_policies_roles.handler",
+            code=lambd.Code.from_asset("src"),
+            environment={
+                "IAM_POLICY_STORAGE_TABLE_NAME": iam_policy_storage_dynamo_table.table_name,
+                "IAM_ROLE_MAPPING_TABLE_NAME": iam_role_mapping_dynamo_table.table_name,
+                "URL": ad_url_secret,
+                "TOKEN": ad_token_secret,
+                "LAMBDA_ROLE_ARN": get_credentials_lambda.role.role_arn,
+            },
+            trigger=lambd.Trigger(
+                schedule=lambd.Schedule.rate(core.Duration.minutes(60)),
+                enabled=True
+            )
+        )
+
         # Add inline policy to Lambda function's role when custom policy needed. DynamoDB access provided separately below.
         cleanup_session_revocations_lambda.role.add_to_policy(iam_remove_revocation_inline_policy)
         get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
@@ -209,6 +235,8 @@ class IamCredentialsApiStack(core.Stack):
         iam_role_mapping_dynamo_table.grant_read_data(cleanup_session_revocations_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(delete_user_sessions_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(get_credentials_lambda)
+        iam_policy_storage_dynamo_table.grant_read_write_data(sync_policies_roles_lambda)
+        iam_role_mapping_dynamo_table.grant_read_write_data(sync_policies_roles_lambda)
 
         # Setup recurring daily schedule for cleanup Lambda function
         cleanup_schedule_rule = events.Rule(self, 'CleanupScheduleRule', schedule=events.Schedule.cron(
