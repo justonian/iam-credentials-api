@@ -14,11 +14,19 @@ dynamo_resource = boto3.resource('dynamodb')
 iam_client = boto3.client('iam')
 
 def lambda_handler(event, context):
+
+    if lambda_handler.adurl_secret is None:
+        secretsclient = boto3.client('secretsmanager')
+        lambda_handler.adurl_secret = secretsclient.get_secret_value(SecretId=os.environ['URL'])['SecretString']
+    if lambda_handler.adtoken_secret is None:
+        secretsclient = boto3.client('secretsmanager')
+        lambda_handler.adtoken_secret = secretsclient.get_secret_value(SecretId=os.environ['TOKEN'])['SecretString']
+
     table = dynamo_resource.Table(DYNAMODB_TABLE)
     iam_role_mapping_table = dynamo_resource.Table(iam_role_mapping_table_name)
 
-    headers = {"Authorization":"Bearer "+TOKEN}
-    response = requests.get(URL, headers=headers)
+    headers = {"Authorization":"Bearer " + lambda_handler.adtoken_secret}
+    response = requests.get(lambda_handler.adurl_secret, headers=headers)
     response_json = response.json() # comment to test
     #response_json = event # uncomment to test
 
@@ -262,4 +270,7 @@ def format_bucket_name(bucket_name):
     return new_bucket_name
 
 def list_to_dict(_list, attribute='bucket'):
-    return {_list[i][attribute]: _list[i] for i in range(len(_list))} 
+    return {_list[i][attribute]: _list[i] for i in range(len(_list))}
+
+lambda_handler.adurl_secret = None
+lambda_handler.adtoken_secret = None
