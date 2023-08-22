@@ -255,7 +255,11 @@ class IamCredentialsApiStack(core.Stack):
             apigateway.LambdaIntegration(delete_user_sessions_lambda),
             authorizer=auth,
         )
-        
+        session_resource_child.add_method(
+            "GET",
+            apigateway.LambdaIntegration(get_sessions_lambda),
+            authorizer=auth,
+        )
         session_resource_child = session_resource.add_resource("{sessionId}").add_resource("cluster").add_resource("{clusterId}")
         session_resource_child.add_method(
             "PUT",
