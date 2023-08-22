@@ -6,14 +6,18 @@ import boto3
 
 dynamodb = boto3.resource('dynamodb')
 table_name = os.environ['SESSIONS_TABLE_NAME']
-table = dynamodb.Table(table_name)
+sessions_table = dynamodb.Table(table_name)
+sessions_clusters_index_name = 'ClusterNameGSI'
+sessions_projects_index_name = 'ProjectIdGSI'
+sessions_users_index_name = 'ClusterUserGSI'
 
 def handler(event, context):
     # Lookup for sessions
     #1 find sessions by cluster
     clustersessions = None
     if "cluster" in event["pathParameters"]:
-        sessions = table.query(
+        sessions = sessions_table.query(
+            IndexName=sessions_clusters_index_name,
             KeyConditionExpression='clusterName = :cluster',
             ExpressionAttributeValues={
                 ':cluster': event["pathParameters"]["cluster"]
@@ -25,7 +29,8 @@ def handler(event, context):
             clustersessions = None
     #2 find sessions by project
     projectsessions = None
-    sessions = table.query(
+    sessions = sessions_table.query(
+        IndexName=sessions_projects_index_name,
         KeyConditionExpression='clusterUserProjectIdClusterName = :project',
         ExpressionAttributeValues={
             ':project': event["pathParameters"]["project"]
@@ -38,7 +43,8 @@ def handler(event, context):
 
     #3 find sessions by user
     usersessions = None
-    sessions = table.query(
+    sessions = sessions_table.query(
+        IndexName=sessions_users_index_name,
         KeyConditionExpression='clusterUserClusterName = :user',
         ExpressionAttributeValues={
             ':user': event["pathParameters"]["user"]

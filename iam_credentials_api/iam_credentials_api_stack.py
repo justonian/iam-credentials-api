@@ -158,6 +158,16 @@ class IamCredentialsApiStack(core.Stack):
             }
         )
 
+        delete_filtered_sessions_lambda = lambd.Function(self, "DeleteFilteredSessions",
+            runtime=lambd.Runtime.PYTHON_3_8,
+            handler="delete_filtered_sessions.handler",
+            code=lambd.Code.from_asset("src"),
+            environment={
+                "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name,
+                "IAM_ROLE_MAPPING_TABLE_NAME": iam_role_mapping_dynamo_table.table_name,
+            }
+        )
+
         get_credentials_lambda = lambd.Function(self, "GetCredentials",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="get_credentials.handler",
@@ -252,7 +262,7 @@ class IamCredentialsApiStack(core.Stack):
         session_resource_child = session_resource.add_resource("users").add_resource("{userId}")
         session_resource_child.add_method(
             "DELETE",
-            apigateway.LambdaIntegration(delete_user_sessions_lambda),
+            apigateway.LambdaIntegration(delete_filtered_sessions_lambda),
             authorizer=auth,
         )
         session_resource_child.add_method(
