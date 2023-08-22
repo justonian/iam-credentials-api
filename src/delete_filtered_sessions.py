@@ -21,43 +21,63 @@ def handler(event, context):
     # Capture current time for consistent use across all revocation activities
     revocation_time = get_current_epoch_time()
     role_session_name_pattern = "*"
-    
-    clustersessions = None
-    if "cluster" in event["pathParameters"]:
-        sessions = sessions_table.query(
-            IndexName=sessions_clusters_index_name,
-            KeyConditionExpression='ClusterName = :cluster',
-            ExpressionAttributeValues={
-                ':cluster': event["pathParameters"]["cluster"],
-                ':statusValue': 'ACTIVE'
-            },
-        # Using AttributeNames since Status is a DynamoDB reserved keyword
+
+    #0 all sessions should we need them
+    sessions = sessions_table.scan(
+        ExpressionAttributeValues={
+            ':statusValue': 'ACTIVE'
+        },
         ExpressionAttributeNames={
             '#SessionStatus': 'Status'
         },
         FilterExpression='#SessionStatus = :statusValue'
-        )
-        clustersessions = sessions['Items']
+    )
+    allsessions = sessions['Items']
+    
+    #1 find sessions by cluster
+    clustersessions = None
+    if "cluster" in event["pathParameters"]:
+        if event["pathParameters"]["cluster"] != "null":
+            sessions = sessions_table.query(
+                IndexName=sessions_clusters_index_name,
+                KeyConditionExpression='ClusterName = :cluster',
+                ExpressionAttributeValues={
+                    ':cluster': event["pathParameters"]["cluster"],
+                    ':statusValue': 'ACTIVE'
+                },
+            # Using AttributeNames since Status is a DynamoDB reserved keyword
+            ExpressionAttributeNames={
+                '#SessionStatus': 'Status'
+            },
+            FilterExpression='#SessionStatus = :statusValue'
+            )
+            clustersessions = sessions['Items']
+        else:
+            clustersessions = allsessions
 
         if len(clustersessions) == 0:
             clustersessions = None
+
     #2 find sessions by project
     projectsessions = None
     if "project" in event["pathParameters"]:
-        sessions = sessions_table.query(
-            IndexName=sessions_projects_index_name,
-            KeyConditionExpression='ProjectId = :project',
-            ExpressionAttributeValues={
-                ':project': event["pathParameters"]["project"],
-                ':statusValue': 'ACTIVE'
+        if event["pathParameters"]["project"] != "null":
+            sessions = sessions_table.query(
+                IndexName=sessions_projects_index_name,
+                KeyConditionExpression='ProjectId = :project',
+                ExpressionAttributeValues={
+                    ':project': event["pathParameters"]["project"],
+                    ':statusValue': 'ACTIVE'
+                },
+            # Using AttributeNames since Status is a DynamoDB reserved keyword
+            ExpressionAttributeNames={
+                '#SessionStatus': 'Status'
             },
-        # Using AttributeNames since Status is a DynamoDB reserved keyword
-        ExpressionAttributeNames={
-            '#SessionStatus': 'Status'
-        },
-        FilterExpression='#SessionStatus = :statusValue'
-        )
-        projectsessions = sessions['Items']
+            FilterExpression='#SessionStatus = :statusValue'
+            )
+            projectsessions = sessions['Items']
+        else:
+            projectsessions = allsessions
 
         if len(projectsessions) == 0:
             projectsessions = None
@@ -65,41 +85,29 @@ def handler(event, context):
     #3 find sessions by user
     usersessions = None
     if "user" in event["pathParameters"]:
-        sessions = sessions_table.query(
-            IndexName=sessions_users_index_name,
-            KeyConditionExpression='ClusterUser = :user',
-            ExpressionAttributeValues={
-                ':user': event["pathParameters"]["user"],
-                ':statusValue': 'ACTIVE'
+        if event["pathParameters"]["user"] != "null":
+            sessions = sessions_table.query(
+                IndexName=sessions_users_index_name,
+                KeyConditionExpression='ClusterUser = :user',
+                ExpressionAttributeValues={
+                    ':user': event["pathParameters"]["user"],
+                    ':statusValue': 'ACTIVE'
+                },
+            # Using AttributeNames since Status is a DynamoDB reserved keyword
+            ExpressionAttributeNames={
+                '#SessionStatus': 'Status'
             },
-        # Using AttributeNames since Status is a DynamoDB reserved keyword
-        ExpressionAttributeNames={
-            '#SessionStatus': 'Status'
-        },
-        FilterExpression='#SessionStatus = :statusValue'
-        )
-        usersessions = sessions['Items']
+            FilterExpression='#SessionStatus = :statusValue'
+            )
+            usersessions = sessions['Items']
+        else:
+            usersessions = allsessions
 
         if len(usersessions) == 0:
             usersessions = None
     
     # if clustersessions, projectsessions and usersessions are not None, compute intersection of them
-    if clustersessions is not None and projectsessions is not None and usersessions is not None:
-        items = intersection(clustersessions, intersection(projectsessions, usersessions))
-    elif clustersessions is not None and projectsessions is not None:
-        items = intersection(clustersessions, projectsessions)
-    elif clustersessions is not None and usersessions is not None:
-        items = intersection(clustersessions, usersessions)
-    elif projectsessions is not None and usersessions is not None:
-        items = intersection(projectsessions,usersessions)
-    elif clustersessions is not None:
-        items = clustersessions
-    elif projectsessions is not None:
-        items = projectsessions
-    elif usersessions is not None:
-        items = usersessions
-    else:
-        items = None
+    items = intersection(clustersessions, projectsessions, usersessions)
 
     role_arns = set()
     print("Active sessions for revocation associated with user", items)
@@ -183,5 +191,7 @@ def put_role_revocation_policy(revocation_time, role_arn, role_session_name_patt
     else:
         return None
 
-def intersection(lst1, lst2):
-    return [item for item in lst1 if item in lst2]
+def intersection(list1, list2, list3):
+    if list1 is None or list2 is None or list3 is None:
+        return None
+    return [v for v in list1 if v in list2 and v in list3]
