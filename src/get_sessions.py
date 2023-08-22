@@ -20,8 +20,14 @@ def handler(event, context):
             IndexName=sessions_clusters_index_name,
             KeyConditionExpression='ClusterName = :cluster',
             ExpressionAttributeValues={
-                ':cluster': event["pathParameters"]["cluster"]
-            }
+                ':cluster': event["pathParameters"]["cluster"],
+                ':statusValue': 'ACTIVE'
+            },
+        # Using AttributeNames since Status is a DynamoDB reserved keyword
+        ExpressionAttributeNames={
+            '#SessionStatus': 'Status'
+        },
+        FilterExpression='#SessionStatus = :statusValue'
         )
         clustersessions = sessions['Items']
 
@@ -29,41 +35,55 @@ def handler(event, context):
             clustersessions = None
     #2 find sessions by project
     projectsessions = None
-    sessions = sessions_table.query(
-        IndexName=sessions_projects_index_name,
-        KeyConditionExpression='ProjectId = :project',
-        ExpressionAttributeValues={
-            ':project': event["pathParameters"]["project"]
-        }
-    )
-    projectsessions = sessions['Items']
+    if "project" in event["pathParameters"]:
+        sessions = sessions_table.query(
+            IndexName=sessions_projects_index_name,
+            KeyConditionExpression='ProjectId = :project',
+            ExpressionAttributeValues={
+                ':project': event["pathParameters"]["project"],
+                ':statusValue': 'ACTIVE'
+            },
+        # Using AttributeNames since Status is a DynamoDB reserved keyword
+        ExpressionAttributeNames={
+            '#SessionStatus': 'Status'
+        },
+        FilterExpression='#SessionStatus = :statusValue'
+        )
+        projectsessions = sessions['Items']
 
-    if len(projectsessions) == 0:
-        projectsessions = None
+        if len(projectsessions) == 0:
+            projectsessions = None
 
     #3 find sessions by user
     usersessions = None
-    sessions = sessions_table.query(
-        IndexName=sessions_users_index_name,
-        KeyConditionExpression='ClusterUser = :user',
-        ExpressionAttributeValues={
-            ':user': event["pathParameters"]["user"]
-        }
-    )
-    usersessions = sessions['Items']
+    if "user" in event["pathParameters"]:
+        sessions = sessions_table.query(
+            IndexName=sessions_users_index_name,
+            KeyConditionExpression='ClusterUser = :user',
+            ExpressionAttributeValues={
+                ':user': event["pathParameters"]["user"],
+                ':statusValue': 'ACTIVE'
+            },
+        # Using AttributeNames since Status is a DynamoDB reserved keyword
+        ExpressionAttributeNames={
+            '#SessionStatus': 'Status'
+        },
+        FilterExpression='#SessionStatus = :statusValue'
+        )
+        usersessions = sessions['Items']
 
-    if len(usersessions) == 0:
-        usersessions = None
+        if len(usersessions) == 0:
+            usersessions = None
     
     # if clustersessions, projectsessions and usersessions are not None, compute intersection of them
     if clustersessions is not None and projectsessions is not None and usersessions is not None:
-        items = list(set(clustersessions) & set(projectsessions) & set(usersessions))
+        items = intersection(clustersessions, intersection(projectsessions, usersessions))
     elif clustersessions is not None and projectsessions is not None:
-        items = list(set(clustersessions) & set(projectsessions))
+        items = intersection(clustersessions, projectsessions)
     elif clustersessions is not None and usersessions is not None:
-        items = list(set(clustersessions) & set(usersessions))
+        items = intersection(clustersessions, usersessions)
     elif projectsessions is not None and usersessions is not None:
-        items = list(set(projectsessions) & set(usersessions))
+        items = intersection(projectsessions,usersessions)
     elif clustersessions is not None:
         items = clustersessions
     elif projectsessions is not None:
@@ -83,3 +103,6 @@ def handler(event, context):
         'statusCode': 404,
         'body': json.dumps('No sessions found')
     }
+
+def intersection(lst1, lst2):
+    return [item for item in lst1 if item in lst2]
