@@ -148,9 +148,21 @@ class IamCredentialsApiStack(core.Stack):
             }
         )
 
+        '''
         delete_user_sessions_lambda = lambd.Function(self, "DeleteUserSessions",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="delete_user_sessions.handler",
+            code=lambd.Code.from_asset("src"),
+            environment={
+                "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name,
+                "IAM_ROLE_MAPPING_TABLE_NAME": iam_role_mapping_dynamo_table.table_name,
+            }
+        )
+        '''
+        
+        delete_filtered_sessions_lambda = lambd.Function(self, "DeleteFilteredSessions",
+            runtime=lambd.Runtime.PYTHON_3_8,
+            handler="delete_filtered_sessions.handler",
             code=lambd.Code.from_asset("src"),
             environment={
                 "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name,
@@ -171,6 +183,15 @@ class IamCredentialsApiStack(core.Stack):
         update_session_lambda = lambd.Function(self, "UpdateSession",
             runtime=lambd.Runtime.PYTHON_3_8,
             handler="update_session.handler",
+            code=lambd.Code.from_asset("src"),
+            environment={
+                "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name
+            }
+        )
+
+        get_sessions_lambda = lambd.Function(self, "GetSessions",
+            runtime=lambd.Runtime.PYTHON_3_8,
+            handler="get_sessions.handler",
             code=lambd.Code.from_asset("src"),
             environment={
                 "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name
@@ -198,16 +219,21 @@ class IamCredentialsApiStack(core.Stack):
         # Add inline policy to Lambda function's role when custom policy needed. DynamoDB access provided separately below.
         cleanup_session_revocations_lambda.role.add_to_policy(iam_remove_revocation_inline_policy)
         get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
-        delete_user_sessions_lambda.role.add_to_policy(iam_put_revocation_inline_policy)
+        get_sessions_lambda.role.add_to_policy(get_credentials_inline_policy)
+        #delete_user_sessions_lambda.role.add_to_policy(iam_put_revocation_inline_policy)
+        delete_filtered_sessions_lambda.role.add_to_policy(iam_put_revocation_inline_policy)
 
         # Grant Lambda functions read and/or write access to respective DynamoDB tables
         sessions_dynamo_table.grant_read_write_data(cleanup_session_revocations_lambda)
         sessions_dynamo_table.grant_read_write_data(create_session_lambda)
-        sessions_dynamo_table.grant_read_write_data(delete_user_sessions_lambda)
+        #sessions_dynamo_table.grant_read_write_data(delete_user_sessions_lambda)
+        sessions_dynamo_table.grant_read_write_data(delete_filtered_sessions_lambda)
         sessions_dynamo_table.grant_read_data(get_credentials_lambda)
+        sessions_dynamo_table.grant_read_data(get_sessions_lambda)
         sessions_dynamo_table.grant_read_write_data(update_session_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(cleanup_session_revocations_lambda)
-        iam_role_mapping_dynamo_table.grant_read_data(delete_user_sessions_lambda)
+        #iam_role_mapping_dynamo_table.grant_read_data(delete_user_sessions_lambda)
+        iam_role_mapping_dynamo_table.grant_read_data(delete_filtered_sessions_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(get_credentials_lambda)
 
         # Setup recurring daily schedule for cleanup Lambda function
@@ -240,13 +266,20 @@ class IamCredentialsApiStack(core.Stack):
             apigateway.LambdaIntegration(create_session_lambda),
             authorizer=auth,
         )
-        session_resource_child = session_resource.add_resource("users").add_resource("{userId}")
+        session_resource_child = session_resource.add_resource("user").add_resource("{user}")
+        session_resource_child = session_resource_child.add_resource("project").add_resource("{project}")
+        session_resource_child = session_resource_child.add_resource("cluster").add_resource("{cluster}")
+
         session_resource_child.add_method(
             "DELETE",
-            apigateway.LambdaIntegration(delete_user_sessions_lambda),
+            apigateway.LambdaIntegration(delete_filtered_sessions_lambda),
             authorizer=auth,
         )
-        
+        session_resource_child.add_method(
+            "GET",
+            apigateway.LambdaIntegration(get_sessions_lambda),
+            authorizer=auth,
+        )
         session_resource_child = session_resource.add_resource("{sessionId}").add_resource("cluster").add_resource("{clusterId}")
         session_resource_child.add_method(
             "PUT",
