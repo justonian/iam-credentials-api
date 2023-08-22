@@ -177,6 +177,15 @@ class IamCredentialsApiStack(core.Stack):
             }
         )
 
+        get_sessions_lambda = lambd.Function(self, "GetSessions",
+            runtime=lambd.Runtime.PYTHON_3_8,
+            handler="get_sessions.handler",
+            code=lambd.Code.from_asset("src"),
+            environment={
+                "SESSIONS_TABLE_NAME": sessions_dynamo_table.table_name
+            }
+        )
+
         get_credentials_inline_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
             actions=["sts:AssumeRole"],
