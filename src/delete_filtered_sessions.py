@@ -26,9 +26,10 @@ def handler(event, context):
     if "cluster" in event["pathParameters"]:
         sessions = sessions_table.query(
             IndexName=sessions_clusters_index_name,
-            KeyConditionExpression='clusterName = :cluster',
+            KeyConditionExpression='ClusterName = :cluster',
             ExpressionAttributeValues={
-                ':cluster': event["pathParameters"]["cluster"]
+                ':cluster': event["pathParameters"]["cluster"],
+                ':statusValue': 'ACTIVE'
             }
         )
         clustersessions = sessions['Items']
@@ -39,9 +40,10 @@ def handler(event, context):
     projectsessions = None
     sessions = sessions_table.query(
         IndexName=sessions_projects_index_name,
-        KeyConditionExpression='clusterUserProjectIdClusterName = :project',
+        KeyConditionExpression='ProjectId = :project',
         ExpressionAttributeValues={
-            ':project': event["pathParameters"]["project"]
+            ':project': event["pathParameters"]["project"],
+            ':statusValue': 'ACTIVE'
         }
     )
     projectsessions = sessions['Items']
@@ -53,9 +55,10 @@ def handler(event, context):
     usersessions = None
     sessions = sessions_table.query(
         IndexName=sessions_users_index_name,
-        KeyConditionExpression='clusterUserClusterName = :user',
+        KeyConditionExpression='ClusterUser = :user',
         ExpressionAttributeValues={
-            ':user': event["pathParameters"]["user"]
+            ':user': event["pathParameters"]["user"],
+            ':statusValue': 'ACTIVE'
         }
     )
     usersessions = sessions['Items']
