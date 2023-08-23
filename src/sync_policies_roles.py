@@ -12,6 +12,8 @@ lambda_role_arn = os.environ['LAMBDA_ROLE_ARN']
 
 dynamo_resource = boto3.resource('dynamodb')
 iam_client = boto3.client('iam')
+table = dynamo_resource.Table(DYNAMODB_TABLE)
+iam_role_mapping_table = dynamo_resource.Table(iam_role_mapping_table_name)
 
 def lambda_handler(event, context):
 
@@ -21,9 +23,6 @@ def lambda_handler(event, context):
     if lambda_handler.adtoken_secret is None:
         secretsclient = boto3.client('secretsmanager')
         lambda_handler.adtoken_secret = secretsclient.get_secret_value(SecretId=os.environ['TOKEN'])['SecretString']
-
-    table = dynamo_resource.Table(DYNAMODB_TABLE)
-    iam_role_mapping_table = dynamo_resource.Table(iam_role_mapping_table_name)
 
     headers = {"Authorization":"Bearer " + lambda_handler.adtoken_secret}
     response = requests.get(lambda_handler.adurl_secret, headers=headers)
@@ -55,19 +54,19 @@ def lambda_handler(event, context):
                         }
                     )
                 # check if the role exists (maybe it was deleted/renamed/crashed)
-                r = iam_role_mapping_table.get_item( Key = {'projectId': project_name})
+                r = iam_role_mapping_table.get_item( Key = {'ProjectId': project_name})
                 if not 'Item' in r:
                     rr = create_role(project_name, policy_arn)                   
                     if rr != None:
-                        p = iam_role_mapping_table.put_item(Item= {'projectId': project_name,'roleName': rr['Role']['RoleName'], 'roleArn': rr['Role']['Arn']})
+                        p = iam_role_mapping_table.put_item(Item= {'ProjectId': project_name,'RoleName': rr['Role']['RoleName'], 'RoleArn': rr['Role']['Arn']})
             else:
                 rp = create_policy(project_name, storage)
                 if rp != None:
                     # create the role and attach the policy
                     r = table.put_item(Item= {'projectId': project_name,'storage':  rp['storage'], 'PolicyName': rp['Policy']['PolicyName'], 'Arn': rp['Policy']['Arn']})
                     rr = create_role(project_name, rp['Policy']['Arn'])                   
-                    if rp != None:
-                        p = iam_role_mapping_table.put_item(Item= {'projectId': project_name,'roleName': rr['Role']['RoleName'], 'roleArn': rr['Role']['Arn']})
+                    if rr != None:
+                        p = iam_role_mapping_table.put_item(Item= {'ProjectId': project_name,'RoleName': rr['Role']['RoleName'], 'RoleArn': rr['Role']['Arn']})
 
     return {
         'statusCode': 200,
@@ -75,7 +74,7 @@ def lambda_handler(event, context):
     }
 
 def create_role(project_name, policy_arn):
-
+    #todo: do not hardcode the IAM role
     trust = """{
         "Version": "2012-10-17",
         "Statement": [
@@ -83,7 +82,7 @@ def create_role(project_name, policy_arn):
                 "Sid": "TrustLambda",
                 "Effect": "Allow",
                 "Principal": {
-                    "AWS": "${lambda_role_arn}"
+                    "AWS": "arn:aws:iam::842865360552:role/IamApiDev-GetCredentialsServiceRole52845DF7-160PXJKES4TXI"
                 },
                 "Action": "sts:AssumeRole"
             }
@@ -114,6 +113,13 @@ def create_role(project_name, policy_arn):
         return None
 
 def create_policy(project_name, storage):
+    # check if the policy exists and delete it
+    try:
+        #todo: do not hardcode the account id
+        iam_client.delete_policy(PolicyArn='arn:aws:iam::842865360552:policy/project-'+project_name)
+    except Exception as e:
+        print('The policy for the project ' + project_name + ':' + str(e))
+    
     statements = []
     for bucket in storage:
         if not bucket['read'] and bucket['write']:

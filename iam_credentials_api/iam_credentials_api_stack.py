@@ -5,6 +5,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_apigateway as apigateway,
     aws_iam as iam,
+    aws_ec2 as ec2,
     CfnOutput,
     aws_secretsmanager as secretsmanager,
     aws_events as events,
@@ -192,6 +193,26 @@ class IamCredentialsApiStack(core.Stack):
             resources=["*"]
         )
 
+        iam_create_policy_inline_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=[
+                "iam:TagPolicy",
+                "iam:ListPolicyVersions",
+                "iam:GetPolicyVersion",
+                "iam:GetPolicy",
+                "iam:DeletePolicyVersion",
+                "iam:CreatePolicyVersion",
+                "iam:CreatePolicy",
+                "iam:DeletePolicy",
+                "iam:CreateRole",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:TagRole",
+
+            ],
+            resources=["*"]
+        )
+
         iam_put_revocation_inline_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
             actions=["iam:GetRole", "iam:PutRolePolicy"],
@@ -203,24 +224,61 @@ class IamCredentialsApiStack(core.Stack):
             actions=["iam:DeleteRolePolicy", "iam:ListRolePolicies"],
             resources=["*"]
         )
+
+        iam_allow_vpc_access_inline_policy = iam.PolicyStatement(
+            effect = iam.Effect.ALLOW,
+            actions = ["ec2:CreateNetworkInterface",
+                        "ec2:DescribeNetworkInterfaces",
+                        "ec2:DeleteNetworkInterface",
+                        "ec2:AssignPrivateIpAddresses",
+                        "ec2:UnassignPrivateIpAddresses"],
+            resources = ["*"]
+        )
+
+        vpc = ec2.Vpc.from_vpc_attributes( self, 'Research',
+          vpc_id = "vpc-0d4f768ff2a53116a",
+          availability_zones = core.Fn.get_azs(),
+          private_subnet_ids = ["subnet-0279f5d3c5b622190", "subnet-032d778917024032d"]
+       )
          
         sync_policies_roles_lambda = lambd.Function(self, "SyncPoliciesRoles",
-            runtime=lambd.Runtime.PYTHON_3_8,
-            handler="sync_policies_roles.handler",
-            code=lambd.Code.from_asset("src"),
+            runtime=lambd.Runtime.PYTHON_3_9,
+            handler="sync_policies_roles.lambda_handler",
             environment={
                 "IAM_POLICY_STORAGE_TABLE_NAME": iam_policy_storage_dynamo_table.table_name,
                 "IAM_ROLE_MAPPING_TABLE_NAME": iam_role_mapping_dynamo_table.table_name,
                 "URL": ad_url_secret.secret_name,
                 "TOKEN": ad_token_secret.secret_name,
                 "LAMBDA_ROLE_ARN": get_credentials_lambda.role.role_arn,
-            }
+            },
+            code=lambd.Code.from_asset(
+                "src",
+                bundling=core.BundlingOptions(
+                    image=lambd.Runtime.PYTHON_3_9.bundling_image,
+                    command=[
+                        "bash", "-c",
+                        "pip install --no-cache -r requirements.txt -t /asset-output && cp -au . /asset-output"
+                    ],
+                ),
+            ),
+            timeout=core.Duration.seconds(90),
+            vpc=vpc,
         )
 
         # Add inline policy to Lambda function's role when custom policy needed. DynamoDB access provided separately below.
         cleanup_session_revocations_lambda.role.add_to_policy(iam_remove_revocation_inline_policy)
         get_credentials_lambda.role.add_to_policy(get_credentials_inline_policy)
         delete_user_sessions_lambda.role.add_to_policy(iam_put_revocation_inline_policy)
+        sync_policies_roles_lambda.role.add_to_policy(iam_put_revocation_inline_policy)
+        sync_policies_roles_lambda.role.add_to_policy(iam_remove_revocation_inline_policy)
+        sync_policies_roles_lambda.role.add_to_policy(iam_allow_vpc_access_inline_policy)
+        sync_policies_roles_lambda.role.add_to_policy(iam_create_policy_inline_policy)
+        
+        sync_policies_roles_lambda.add_to_role_policy(iam.PolicyStatement(
+                actions=["secretsmanager:GetSecretValue"],
+                effect=iam.Effect.ALLOW,
+                resources=[ad_url_secret.secret_arn, ad_token_secret.secret_arn]
+            ))
 
         # Grant Lambda functions read and/or write access to respective DynamoDB tables
         sessions_dynamo_table.grant_read_write_data(cleanup_session_revocations_lambda)
@@ -231,6 +289,8 @@ class IamCredentialsApiStack(core.Stack):
         iam_role_mapping_dynamo_table.grant_read_data(cleanup_session_revocations_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(delete_user_sessions_lambda)
         iam_role_mapping_dynamo_table.grant_read_data(get_credentials_lambda)
+        iam_policy_storage_dynamo_table.grant_read_write_data(sync_policies_roles_lambda)
+        iam_role_mapping_dynamo_table.grant_read_write_data(sync_policies_roles_lambda)
         iam_policy_storage_dynamo_table.grant_read_write_data(sync_policies_roles_lambda)
         iam_role_mapping_dynamo_table.grant_read_write_data(sync_policies_roles_lambda)
 

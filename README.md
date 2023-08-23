@@ -64,6 +64,8 @@ To add additional dependencies, for example other CDK libraries, just add
 them to your `setup.py` file and rerun the `pip install -r requirements.txt`
 command.
 
+Note: installing python dependencies requires docker to be installed and running.
+
 ### New account setup
 
 Whenever deploying this solution to a new account for the first time, run CDK bootstrap to setup the needed S3 bucket and infrastructure
