@@ -56,6 +56,7 @@ def handler(event, context):
         policy.allow_method(HttpVerb.POST, "sessions/")
         policy.allow_method(HttpVerb.PUT, "sessions/*")
         policy.allow_method(HttpVerb.DELETE, "sessions/*")
+        policy.allow_method(HttpVerb.GET, "sessions/*")
     else:
         items = get_item_by_session_token(principal_id)
         if len(items) != 1:
