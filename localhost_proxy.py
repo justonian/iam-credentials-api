@@ -7,6 +7,9 @@ import threading
 import json
 from datetime import datetime
 import queue
+import threading
+
+cache_lock = threading.Lock()
 
 hostname = ''
 # Configure credentials cache to be enabled by default
@@ -60,10 +63,11 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 cache_keys.put(key)
                 # remove expired items every time we insert, or when queue is big enough
                 # max_queue_size of 0 indicates it will not bound the queue_size
-                while((max_queue_size > 0 and cache_keys.qsize() >= max_queue_size) or datetime.now() >= credentials_cache[cache_keys.queue[0]]["expiration"]):
-                    k = cache_keys.get()
-                    print("Removing from cache key", k)
-                    del credentials_cache[k]
+                with cache_lock:
+                    while((max_queue_size > 0 and cache_keys.qsize() >= max_queue_size) or datetime.now() >= credentials_cache[cache_keys.queue[0]]["expiration"]):
+                        k = cache_keys.get()
+                        print("Removing from cache key", k)
+                        del credentials_cache[k]
             if body:
                 self.wfile.write(msg.encode(encoding='UTF-8',errors='strict'))
  
