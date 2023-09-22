@@ -44,10 +44,12 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
             headers = set_header(req_header)
             key = headers['Authorization'] + url
             resp = None
-            if cache_mode == "store" and key in credentials_cache and datetime.now() < credentials_cache[key]["expiration"]:
-                print("Using cached credentials.")
-                resp = credentials_cache[key]["content"]
-            else:
+            if cache_mode == "store":
+                value = credentials_cache.get(key)
+                if value is not None and datetime.now() < value["expiration"]:
+                    print("Using cached credentials.")
+                    resp = value["content"]
+            if resp is None:
                 print("Requesting credentials from API. Cached credentials not avaialble.")
                 resp = requests.get(url, headers=headers, verify=False)
             sent = True
@@ -62,7 +64,7 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 }
                 cache_keys.put(key)
                 # remove expired items every time we insert, or when queue is big enough
-                # max_queue_size of 0 indicates it will not bound the queue_size
+                # max_queue_size of 0 indicates it will not bind the queue_size
                 with cache_lock:
                     while((max_queue_size > 0 and cache_keys.qsize() >= max_queue_size) or datetime.now() >= credentials_cache[cache_keys.queue[0]]["expiration"]):
                         k = cache_keys.get()
