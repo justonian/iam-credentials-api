@@ -1,25 +1,63 @@
 #!/usr/bin/env python3
 from http.server import BaseHTTPRequestHandler,HTTPServer
-import argparse, os, random, sys, requests
-
-from socketserver import ThreadingMixIn
+import argparse, sys, requests
 import threading
-import json
 from datetime import datetime
 import queue
 import threading
-
-cache_lock = threading.Lock()
+from socketserver import ThreadingMixIn
+import json
 
 hostname = ''
-# Configure credentials cache to be enabled by default
-cache_mode = "store"
+cache = None
 
-max_queue_size = 1000000
+class CacheContainer():
+    def __init__(self, cache_mode, max_queue_size):
+        # Configure credentials cache to be enabled by default "store"
+        self.cache_mode = cache_mode
+        self.max_queue_size = max_queue_size
+        self.credentials_cache = {}
+        self.cache_lock = threading.Lock()
+        # Queue to remove expired keys
+        self.cache_keys = queue.Queue()
 
-credentials_cache = {}
-# Queue to remove expired keys
-cache_keys = queue.Queue()
+    def get(self, key):
+        return self.credentials_cache.get(key)
+
+    def put(self, key, content):
+        self.clear_cache()
+        self.credentials_cache[key] = content
+        self.cache_keys.put(key)
+
+    def clear_cache(self):
+        # remove expired items every time we insert, or when queue is big enough
+        # max_queue_size of 0 indicates it will not bind the queue_size
+        self.cache_lock.acquire()
+        error = None
+        try:
+            while(True):
+                if self.cache_keys.qsize() == 0:
+                    break
+                top = self.cache_keys.queue[0]
+                current = self.credentials_cache.get(top)
+                if current == None:
+                    # We already deleted this key, so just skip from the queue
+                    self.cache_keys.get()
+                    continue
+                # If expired or greater than the configured limit remove
+                if datetime.now() >= current["expiration"] or self.max_queue_size < self.cache_keys.qsize():
+                    self.cache_keys.get()
+                    del self.credentials_cache[top]
+                    continue
+                # if there are no expired items or queue is smaller than limit break purging
+                break
+
+        except BaseException as e:
+            error = e
+        finally:
+            self.cache_lock.release()
+            if error is not None:
+                raise error
 
 def merge_two_dicts(x, y):
     return x | y
@@ -44,8 +82,8 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
             headers = set_header(req_header)
             key = headers['Authorization'] + url
             resp = None
-            if cache_mode == "store":
-                value = credentials_cache.get(key)
+            if cache.cache_mode == "store":
+                value = cache.get(key)
                 if value is not None and datetime.now() < value["expiration"]:
                     print("Using cached credentials.")
                     resp = value["content"]
@@ -57,19 +95,11 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
             self.send_response(resp.status_code)
             self.send_resp_headers(resp)
             msg = resp.text
-            if resp.status_code == 200 and cache_mode == "store":
-                credentials_cache[key] = {
+            if resp.status_code == 200 and cache.cache_mode == "store":
+                cache.put(key, {
                     "content": resp,
                     "expiration": datetime.fromisoformat(json.loads(msg)["Expiration"][:-6])
-                }
-                cache_keys.put(key)
-                # remove expired items every time we insert, or when queue is big enough
-                # max_queue_size of 0 indicates it will not bind the queue_size
-                with cache_lock:
-                    while((max_queue_size > 0 and cache_keys.qsize() >= max_queue_size) or datetime.now() >= credentials_cache[cache_keys.queue[0]]["expiration"]):
-                        k = cache_keys.get()
-                        print("Removing from cache key", k)
-                        del credentials_cache[k]
+                })
             if body:
                 self.wfile.write(msg.encode(encoding='UTF-8',errors='strict'))
  
@@ -139,6 +169,7 @@ def main(argv=sys.argv[1:]):
     hostname = args.hostname
     cache_mode = args.cache_mode
     max_queue_size = args.max_queue_size
+    cache = CacheContainer(cache_mode, max_queue_size)
     print('HTTP server is starting on {} port {}...'.format(args.hostname, args.port))
     server_address = ('127.0.0.1', args.port)
     httpd = ThreadedHTTPServer(server_address, ProxyHTTPRequestHandler)
