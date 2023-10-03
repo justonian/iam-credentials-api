@@ -165,6 +165,7 @@ def main(argv=sys.argv[1:]):
     global hostname
     global cache_mode
     global max_queue_size
+    global cache
     args = parse_args(argv)
     hostname = args.hostname
     cache_mode = args.cache_mode
