@@ -80,7 +80,13 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
             url = 'https://{}{}'.format(hostname, self.path)
             req_header = self.parse_headers()
             headers = set_header(req_header)
-            key = headers['Authorization'] + url
+            # C++ sdk uses lowercase authorization, so try both
+            if 'Authorization' in headers:
+                key = headers['Authorization'] + url
+            elif 'authorization' in headers:
+                key = headers['authorization'] + url
+            else:
+                raise 'No authorization header found in request'
             resp = None
             if cache.cache_mode == "store":
                 value = cache.get(key)
