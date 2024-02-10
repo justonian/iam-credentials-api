@@ -57,7 +57,7 @@ $ pip install -r requirements.txt
 At this point you can now synthesize the CloudFormation template for this code.
 
 ```
-$ cdk synth
+$ cdk synth --context=env=Dev
 ```
 
 To add additional dependencies, for example other CDK libraries, just add
@@ -68,7 +68,7 @@ command.
 
 Whenever deploying this solution to a new account for the first time, run CDK bootstrap to setup the needed S3 bucket and infrastructure
 ```
-$ cdk bootstrap
+$ cdk bootstrap --context=env=Dev
 ```
 
 ### Regular deployments
@@ -78,12 +78,12 @@ To deploy any changes to the environment, run cdk deploy which will deploy the s
 To install and/or update the stack resources:
 
 ```
-$ cdk deploy -c env=Dev
+$ cdk deploy --context=env=Dev
 ```
 
 To destroy/uninstall the stack, specify -c env=Dev or the environment name that will be destroyed
 ```
-$ cdk destroy -c env=Dev
+$ cdk destroy --context=env=Dev
 ```
 
 ### Useful commands
